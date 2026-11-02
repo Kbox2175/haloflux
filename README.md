@@ -28,8 +28,11 @@ A full-screen, beat-driven sci-fi data visualization — a woven light-field cor
 - [x] Ring panels, HUD and dev hint localised to Chinese (panel fonts bumped so CJK is legible at the micro-panel scale)
 - [x] Live adapter invariants verified: display tokens counted only from transient `text-delta`, no double-count on settlement, `prepend` ignored, `replace` rescanned quietly, projections read defensively
 - [x] `createHaloflux({ source })` attaches a data source; `?data=none` disables it; a simulated source (`src/data/simulate.js`) drives the harness standalone
+- [x] Page shell (`src/ui/shell.js`): header KPIs (轮次 / 步 / 生成速率 / 上下文占用 / 工具) + the eight panels, all driven by the same link snapshot the ring reads
+- [x] Eight panels use real data: 调查流 (feed), 平流/粒子求解器 (tps-driven flow), 方法工作区 (turn/step), 共享场景/差分场 (context), 来源/提取路由 (tools), 校验/采样缓冲 (sparklines), 智能体/调度 (agents), 方法/参考索引 (matrix)
+- [x] `P` key toggles the panel row; `F` toggles fullscreen
 - [ ] Comets (grouped light bundles) and the remaining event mappings
-- [ ] Page shell (header + stage + panels), per-agent views, mini console
+- [ ] Per-agent views and the mini console
 - [ ] Tauri unlock overlay and opening animation
 
 Dev harness: `npm run serve` → http://127.0.0.1:5173/

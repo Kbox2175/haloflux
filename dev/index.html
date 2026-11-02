@@ -3,86 +3,52 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>haloflux · engine dev harness</title>
+<title>HALOFLUX · 实时光环</title>
 <style>
   html, body { margin: 0; height: 100%; background: #08090b; overflow: hidden; }
-  #wrap { position: absolute; inset: 0; overflow: hidden; }
-  #stage { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-
-  /* Same post-processing overlay as lab.html's .stage::after — scanlines plus
-     the vignette. Keeping it here makes screenshots comparable with the
-     baselines captured from the original page. */
-  #wrap::after {
-    content: ""; position: absolute; inset: 0; pointer-events: none;
-    background:
-      repeating-linear-gradient(0deg, rgba(0,0,0,.18) 0 1px, transparent 1px 3px),
-      radial-gradient(ellipse at 40% 50%, transparent 55%, rgba(0,0,0,.55) 100%);
-  }
-
-  #hint {
-    position: absolute; right: 14px; bottom: 12px; z-index: 2;
-    font: 11px ui-monospace, Consolas, monospace; color: #6b6f78; user-select: none;
-  }
-  #hint b { color: #cfd2d8; font-weight: 600; }
 </style>
 </head>
 <body>
-<div id="wrap"><canvas id="stage"></canvas></div>
-<div id="hint">阶段 0 · 切片 5 &nbsp;·&nbsp; <b>?quality=low|medium|high|ultra</b> &nbsp; <b>?seed=1</b> &nbsp; <b>?hud=0</b> &nbsp; <b>?stage=1280x408</b> &nbsp; <b>?data=none</b> &nbsp; <b>?params=rotateToData:0</b></div>
-
 <script type="module">
   import { createHaloflux } from '../src/engine/index.js';
+  import { createShell } from '../src/ui/shell.js';
   import { createSimulatedSource } from '../src/data/simulate.js';
 
   const q = new URLSearchParams(location.search);
-  const wrap = document.getElementById('wrap');
-  const canvas = document.getElementById('stage');
 
-  // ?stage=WxH pins the canvas (and its overlay) so a screenshot can be
-  // compared 1:1 with the original lab.html stage: 1280x408 at a 1280x720 window.
-  const stage = q.get('stage');
-  if (stage) {
-    const [w, h] = stage.split('x').map(Number);
-    Object.assign(wrap.style, { right: 'auto', bottom: 'auto', width: w + 'px', height: h + 'px' });
-    Object.assign(canvas.style, { right: 'auto', bottom: 'auto', width: w + 'px', height: h + 'px' });
-  }
-
-  // ?params=webPulseAmp:0,webPulseBase:0 — ad-hoc parameter overrides for A/B checks
-  const overrides = {};
-  for (const pair of (q.get('params') || '').split(',').filter(Boolean)) {
-    const [k, v] = pair.split(':');
-    overrides[k] = Number(v);
-  }
+  const canvas = document.createElement('canvas');
+  document.body.appendChild(canvas);
 
   const halo = createHaloflux(canvas, {
     seed: Number(q.get('seed') || 1),
     quality: q.get('quality') || 'high',
-    hud: q.get('hud') !== '0',
-    params: overrides,
-    // ?data=none disables the link; otherwise a simulated session drives it
+    hud: q.get('hud') === '1',
+    params: (() => {
+      const o = {};
+      for (const pair of (q.get('params') || '').split(',').filter(Boolean)) {
+        const [k, v] = pair.split(':');
+        o[k] = Number(v);
+      }
+      return o;
+    })(),
     source: q.get('data') === 'none' ? null : createSimulatedSource()
   });
 
-  window.__halo = halo;
-  window.addEventListener('keydown', (e) => {
-    if (e.key === 's') halo.stop();
-    if (e.key === 'p') halo.start();
+  const shell = createShell({
+    canvas,
+    engine: halo,
+    panels: q.get('panels') !== '0',
+    onToggle: (v) => console.log(`[haloflux] 面板 ${v ? '显示' : '隐藏'}（P 键切换）`)
   });
 
-  // The simulated source drives the ring on its own. This is just a console
-  // reporter so you can correlate the visual aim with the actual data.
-  if (q.get('report') !== '0') {
-    setInterval(() => {
-      const s = halo.getState();
-      if (s.link) {
-        const peak = s.link.running
-          ? `running turn ${s.link.turn} step ${s.link.step} tps ${s.link.tps.toFixed(1)} ` +
-            `ctx ${s.link.contextTokens}/${s.link.contextLimit} tools ${s.link.tools}`
-          : 'idle';
-        console.log(`[haloflux] 对准=${s.ringFocus} ${peak}`);
-      }
-    }, 1000);
-  }
+  window.__halo = halo;
+  window.__shell = shell;
+
+  // keyboard extras (P / F are owned by the shell)
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'r' || e.key === 'R') halo.stop();
+    if (e.key === 's' || e.key === 'S') halo.start();
+  });
 </script>
 </body>
 </html>
