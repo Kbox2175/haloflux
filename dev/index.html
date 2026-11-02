@@ -28,10 +28,11 @@
 </head>
 <body>
 <div id="wrap"><canvas id="stage"></canvas></div>
-<div id="hint">phase 0 · slice 5 &nbsp;·&nbsp; <b>?quality=low|medium|high|ultra</b> &nbsp; <b>?seed=1</b> &nbsp; <b>?hud=0</b> &nbsp; <b>?stage=1280x408</b> &nbsp; <b>?demo=0</b> &nbsp; <b>?params=rotateToData:0</b></div>
+<div id="hint">phase 0 · slice 5 &nbsp;·&nbsp; <b>?quality=low|medium|high|ultra</b> &nbsp; <b>?seed=1</b> &nbsp; <b>?hud=0</b> &nbsp; <b>?stage=1280x408</b> &nbsp; <b>?data=none</b> &nbsp; <b>?params=rotateToData:0</b></div>
 
 <script type="module">
   import { createHaloflux } from '../src/engine/index.js';
+  import { createSimulatedSource } from '../src/data/simulate.js';
 
   const q = new URLSearchParams(location.search);
   const wrap = document.getElementById('wrap');
@@ -57,7 +58,9 @@
     seed: Number(q.get('seed') || 1),
     quality: q.get('quality') || 'high',
     hud: q.get('hud') !== '0',
-    params: overrides
+    params: overrides,
+    // ?data=none disables the link; otherwise a simulated session drives it
+    source: q.get('data') === 'none' ? null : createSimulatedSource()
   });
 
   window.__halo = halo;
@@ -66,32 +69,19 @@
     if (e.key === 'p') halo.start();
   });
 
-  // ?demo=1 fires data at ring panels. To exercise the rotation rule the demo
-  // keeps one "hot" channel that changes every few seconds, so you can watch
-  // the ring chase it and then switch aim when the hot channel moves.
-  if (q.get('demo') !== '0') {
-    let demoTimer = null;
-    let hotSlot = 0;
-    let hotUntil = 0;
-
-    function fireDemo() {
-      const slots = halo.getState().slots || 1;
-      const now = performance.now();
-      if (now > hotUntil) {
-        hotSlot = Math.floor(Math.random() * slots);
-        hotUntil = now + 5000 + Math.random() * 4000;
+  // The simulated source drives the ring on its own. This is just a console
+  // reporter so you can correlate the visual aim with the actual data.
+  if (q.get('report') !== '0') {
+    setInterval(() => {
+      const s = halo.getState();
+      if (s.link) {
+        const peak = s.link.running
+          ? `running turn ${s.link.turn} step ${s.link.step} tps ${s.link.tps.toFixed(1)} ` +
+            `ctx ${s.link.contextTokens}/${s.link.contextLimit} tools ${s.link.tools}`
+          : 'idle';
+        console.log(`[haloflux] aim=${s.ringFocus} ${peak}`);
       }
-      const isHot = Math.random() < 0.72;
-      const slot = isHot ? hotSlot : Math.floor(Math.random() * slots);
-      halo.pushImpulse({
-        slot,
-        power: isHot ? 0.8 + Math.random() * 0.2 : 0.35 + Math.random() * 0.3,
-        kind: Math.random() < 0.3 ? 'tool_result' : 'tool_call'
-      });
-      demoTimer = setTimeout(fireDemo, 250 + Math.random() * 1200);
-    }
-    fireDemo();
-    window.__demoSlot = () => hotSlot;
+    }, 1000);
   }
 </script>
 </body>

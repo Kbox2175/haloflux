@@ -14,6 +14,8 @@ import { createWebLayer } from './web.js';
 import { createRingLayer } from './ring.js';
 import { createOuterLayer } from './outer.js';
 import { createStateMachine } from './state.js';
+import { createChannelMap } from '../data/channels.js';
+import { createLink } from '../data/link.js';
 
 /**
  * @typedef {Object} HalofluxOptions
@@ -25,6 +27,7 @@ import { createStateMachine } from './state.js';
  * @property {(cb: FrameRequestCallback) => number} [raf]  scheduler injection (tests)
  * @property {boolean} [autoStart]
  * @property {boolean} [hud]            draw the debug HUD
+ * @property {object|null} [source]    data source (DataSource) for the link layer
  */
 
 /** Layers ported so far — used by the HUD and by the parity checklist. */
@@ -58,6 +61,17 @@ export function createHaloflux(canvas, options = {}) {
   const outer = createOuterLayer({ random, params: C });
   const activity = createStateMachine({ mode: 'run' });
 
+  // Data link (optional). The link calls back into the engine; a small facade
+  // avoids the construction-time circular reference.
+  let channels = null;
+  let link = null;
+  let lastLinkTs = 0;
+  const engineApi = {
+    pushImpulse: (i) => pushImpulse(i),
+    pushTick: (t) => pushTick(t),
+    setMode: (m) => setMode(m)
+  };
+
   let Q = resolveQuality(opt.quality);
   let W = 0, H = 0, cx = 0, cy = 0, R = 0, RO = 0, thV = 0, thS = 0, RMAX = 0, dpr = 1;
   let running = false, destroyed = false, rafId = 0, last = 0, T = 0;
@@ -76,6 +90,19 @@ export function createHaloflux(canvas, options = {}) {
   function syncTraffic() {
     const n = ring.slotCount;
     if (traffic.length !== n) traffic = new Array(n).fill(0);
+  }
+
+  /** Create the data link (once) and keep channels in sync with the ring. */
+  function syncChannels() {
+    const n = ring.slotCount;
+    if (!channels) {
+      if (!opt.source) return;
+      channels = createChannelMap(n, { now: () => T * 1000 });
+      link = createLink(opt.source, engineApi, { channels });
+      if (C.rotateToData && !C.dataDriven) C.dataDriven = 1;
+    } else if (channels.length !== n) {
+      channels.resize(n);
+    }
   }
 
   function resize() {
@@ -97,6 +124,7 @@ export function createHaloflux(canvas, options = {}) {
     web.build(W, H, R, dpr);
     ring.build(R, RO);
     syncTraffic();
+    syncChannels();
     outer.build({ W, H, cx, cy, R, RO, RMAX, thS, DPR: dpr, FS: Q.farDown });
   }
 
@@ -189,6 +217,10 @@ export function createHaloflux(canvas, options = {}) {
     destroyed = true;
     if (ro) ro.disconnect();
     ro = null;
+    if (link) {
+      try { link.dispose(); } catch { /* ignore */ }
+      link = null;
+    }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   }
@@ -283,6 +315,19 @@ export function createHaloflux(canvas, options = {}) {
       activity: { mode: activity.mode, level: activity.level },
       slots: ring.slotCount,
       ringFocus: ring.focus,
+      dataDriven: C.dataDriven,
+      link: link ? {
+        running: link.lastRunning,
+        activity: link.lastActivity,
+        tps: link.lastTps,
+        contextTokens: link.lastContextTokens,
+        contextLimit: link.lastContextLimit,
+        turn: link.lastTurn,
+        step: link.lastStep,
+        tools: link.lastTools.length,
+        feed: link.lastFeed.length,
+        recentText: link.lastRecentText
+      } : null,
       impulses: impulses.length,
       tick: lastTick
     };
@@ -312,6 +357,22 @@ export function createHaloflux(canvas, options = {}) {
     setMode,
     detectTraffic,
     get traffic() { return traffic.slice(); },
+    get link() { return link; },
+    attachLink(source) {
+      if (link) link.dispose();
+      link = null;
+      channels = null;
+      if (source) {
+        opt.source = source;
+        syncChannels();
+      }
+      return link;
+    },
+    detachLink() {
+      if (link) { link.dispose(); link = null; }
+      opt.source = null;
+      channels = null;
+    },
     getState,
     resize
   };

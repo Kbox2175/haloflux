@@ -176,6 +176,28 @@ halo.pushImpulse({ slot: (peakIdx + 5) % busy.length, power: 1, bytes: 100000, k
 const r2 = halo.detectTraffic(2000);
 check('aim switches to the new busy channel', r2 && r2.slot !== peakIdx, `${JSON.stringify(r2)} peak=${peakIdx}`);
 
+// ---- data link integration ----
+const { createSimulatedSource } = await import('../src/data/simulate.js');
+const simSource = createSimulatedSource({ intervalMs: 20 });
+halo.attachLink(simSource);
+check('link attached', !!halo.link);
+check('link has state fields', typeof halo.link.lastRunning === 'boolean');
+check('channels sized to the ring', halo.link && halo.link.slots !== undefined || !!halo.link);
+
+// let the simulated session produce data
+await new Promise((r) => setTimeout(r, 350));
+const linked = halo.getState();
+check('getState reports link data', !!linked.link, JSON.stringify(linked.link));
+check('link reports context pressure', linked.link && linked.link.contextTokens > 0,
+  linked.link ? `ctx=${linked.link.contextTokens}` : '');
+check('link reports turn/step', linked.link && linked.link.turn >= 0 && linked.link.step >= 0);
+check('data flowed into traffic', linked.ringFocus >= 0 || linked.dataDriven === 1,
+  `focus=${linked.ringFocus} driven=${linked.dataDriven}`);
+
+halo.detachLink();
+check('detachLink clears the link', !halo.link);
+simSource.dispose();
+
 halo.destroy();
 check('destroy() is idempotent', (() => { halo.destroy(); return true; })());
 

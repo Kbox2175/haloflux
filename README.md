@@ -24,10 +24,12 @@ A full-screen, beat-driven sci-fi data visualization — a woven light-field cor
 - [x] Outer beam strata (5 layers), haze bands, root flares, fly-out streaks — random by default; `dataDriven=1` (or any `pushImpulse({slot})`) makes beams respond to that ring panel instead
 - [x] Activity state machine (void / idle / run) with attack / release envelope
 - [x] Canvas pool for ring panels
+- [x] Data link: session event adapter (`src/data/live.js`) + link layer (`src/data/link.js`) + channel map (`src/data/channels.js`), ported from the upstream `dsh-haloflux` live adapter
+- [x] Live adapter invariants verified: display tokens counted only from transient `text-delta`, no double-count on settlement, `prepend` ignored, `replace` rescanned quietly, projections read defensively
+- [x] `createHaloflux({ source })` attaches a data source; `?data=none` disables it; a simulated source (`src/data/simulate.js`) drives the harness standalone
 - [ ] Comets (grouped light bundles) and the remaining event mappings
 - [ ] Page shell (header + stage + panels), per-agent views, mini console
-- [ ] Data link (`dsh-token-meter` + `dsh-context` → impulse/tick)
-- [ ] Unlock overlay and opening animation (Tauri)
+- [ ] Tauri unlock overlay and opening animation
 
 Dev harness: `npm run serve` → http://127.0.0.1:5173/
 
