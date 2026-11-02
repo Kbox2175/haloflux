@@ -190,9 +190,11 @@ check('panels dispose cleanly', true);
 
 // ---- shell ----
 const canvas = new FakeEl('canvas');
+const overlays = [];
 const engine = {
   getState: () => ({ link: sample.link, slots: 40, ringFocus: 3, activity: { mode: 'run', level: 1 } }),
-  stop() {}, start() {}
+  stop() {}, start() {}, resize() {},
+  setOverlay(rect) { overlays.push(rect); }
 };
 
 let shell;
@@ -210,6 +212,9 @@ shell.toggle();
 check('toggle hides panels', shell.visible === false);
 shell.toggle();
 check('toggle shows panels again', shell.visible === true);
+
+check('overlay set on show', overlays.some((r) => r && r.height > 0), JSON.stringify(overlays.slice(-3)));
+check('overlay cleared on hide', overlays.some((r) => r === null));
 
 try { shell.update(); } catch (e) { check('shell.update()', false, e.message); }
 check('shell.update() runs', true);

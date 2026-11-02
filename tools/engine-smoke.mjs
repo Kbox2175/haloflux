@@ -205,5 +205,27 @@ simSource.dispose();
 halo.destroy();
 check('destroy() is idempotent', (() => { halo.destroy(); return true; })());
 
+// ---- overlay clip (panel band) ----
+const canvas2 = {
+  getContext: () => makeCtx('overlay'),
+  getBoundingClientRect: () => ({ width: 1280, height: 720, left: 0, top: 0 }),
+  width: 2560, height: 1440
+};
+const halo2 = createHaloflux(canvas2, { seed: 5, autoStart: false, hud: true });
+halo2.setOverlay({ left: 0, top: 600, width: 1280, height: 120 });
+halo2.start();
+let frames2 = 0;
+for (let i = 0; i < 30; i++) {
+  clock += 16.7;
+  const q = rafQueue;
+  rafQueue = [];
+  for (const cb of q) cb(clock);
+  frames2++;
+}
+halo2.stop();
+check('overlay draws without throwing', frames2 === 30, `${frames2}`);
+check('overlay clears to null', (() => { halo2.setOverlay(null); halo2.setOverlay({}); halo2.setOverlay({ left: 0, top: 0, width: 0, height: 0 }); return true; })());
+halo2.destroy();
+
 console.log(`\n${failures === 0 ? 'ALL PASS' : failures + ' FAILURES'}`);
 process.exit(failures === 0 ? 0 : 1);

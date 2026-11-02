@@ -13,12 +13,20 @@
 import { PANELS } from './panels.js';
 
 const STYLE = `
-.halo-shell{display:grid;grid-template-rows:auto minmax(0,1fr) auto;height:100vh;background:#08090b;color:#cfd2d8;
+.halo-shell{position:relative;height:100vh;background:#08090b;color:#cfd2d8;
   font-family:ui-monospace,"Cascadia Mono","SF Mono",Consolas,monospace;overflow:hidden}
-.halo-shell.panels-off .halo-panels{display:none}
-.halo-shell.panels-off{grid-template-rows:auto minmax(0,1fr)}
 
-.halo-header{display:grid;grid-template-columns:minmax(240px,1.7fr) repeat(5,minmax(0,1fr));
+/* The canvas owns the whole viewport. The header and the panel row are
+   overlays on top, so toggling panels never changes the stage size — the ring
+   keeps exactly the same geometry whether the panels are open or closed. */
+.halo-stage{position:absolute;inset:0;overflow:hidden}
+.halo-stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.halo-stage::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0 1px,transparent 1px 3px),
+             radial-gradient(ellipse at 40% 50%,transparent 55%,rgba(0,0,0,.55) 100%)}
+
+.halo-header{position:absolute;top:0;left:0;right:0;z-index:3;
+  display:grid;grid-template-columns:minmax(240px,1.7fr) repeat(5,minmax(0,1fr));
   align-items:end;border-bottom:1px solid #25282e;padding:10px 18px 0;background:#0a0b0d}
 .halo-brand h1{white-space:nowrap;margin:0;font-size:18px;font-weight:800;letter-spacing:1.5px;color:#f4f5f7}
 .halo-brand p{margin:3px 0 9px;font-size:9px;color:#6b6f78;letter-spacing:1.2px}
@@ -30,13 +38,8 @@ const STYLE = `
 .halo-kpi .seg{position:absolute;left:10px;right:0;bottom:-1px;height:2px;background:#25282e}
 .halo-kpi .seg i{display:block;height:100%;background:#cfd2d8;width:0;transition:width 1.2s ease}
 
-.halo-stage{position:relative;min-height:0;overflow:hidden}
-.halo-stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
-.halo-stage::after{content:"";position:absolute;inset:0;pointer-events:none;
-  background:repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0 1px,transparent 1px 3px),
-             radial-gradient(ellipse at 40% 50%,transparent 55%,rgba(0,0,0,.55) 100%)}
-
-.halo-panels{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:8px 12px 12px;
+.halo-panels{position:absolute;bottom:0;left:0;right:0;z-index:3;
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:8px 12px 12px;
   border-top:1px solid #25282e;background:#0a0b0d}
 .halo-panels.compact{grid-template-columns:repeat(2,minmax(0,1fr))}
 .p{border:1px solid #25282e;background:#0e0f12;padding:7px 10px 6px;height:clamp(118px,17vh,168px);
@@ -111,7 +114,7 @@ export function createShell(opts) {
   document.head.appendChild(style);
 
   const shell = document.createElement('div');
-  shell.className = 'halo-shell' + (o.panels === false ? ' panels-off' : '');
+  shell.className = 'halo-shell';
 
   const header = document.createElement('header');
   header.className = 'halo-header';
@@ -201,16 +204,50 @@ export function createShell(opts) {
   shell.appendChild(panelsEl);
   mount.appendChild(shell);
 
+  // The canvas has moved into the stage — re-measure so the engine does not
+  // keep the dimensions it read while it was still in <body>.
+  if (engine.resize) engine.resize();
+
   const kpis = [...header.querySelectorAll('.halo-kpi')];
   const segs = [...header.querySelectorAll('.seg i')];
 
   let last = performance.now();
   let visible = o.panels !== false;
 
+  setVisible(visible);
+
   function setVisible(v) {
     visible = v;
-    shell.classList.toggle('panels-off', !v);
+    panelsEl.style.display = v ? '' : 'none';
+    syncOverlay();
+    // the panel canvases need a real box before they can be measured; wait one
+    // frame for the layout to settle, then re-sync overlay + panel sizes
+    requestAnimationFrame(() => {
+      syncOverlay();
+      if (v) {
+        for (const { created } of creators) {
+          try { created.resize && created.resize(); } catch { /* ignore */ }
+        }
+      }
+    });
     if (o.onToggle) o.onToggle(v);
+  }
+
+  /**
+   * Tell the engine which rectangle the panels cover, so the canvas skips
+   * drawing there. The panels are opaque, so this is purely a saving — but it
+   * also keeps the ring from bleeding behind the panel edges.
+   */
+  function syncOverlay() {
+    if (!engine.setOverlay) return;
+    if (!visible) { engine.setOverlay(null); return; }
+    const r = panelsEl.getBoundingClientRect();
+    const sr = shell.getBoundingClientRect();
+    const left = r.left - sr.left;
+    const top = r.top - sr.top;
+    const width = r.width;
+    const height = r.height;
+    engine.setOverlay({ left, top, width, height });
   }
 
   function update() {
