@@ -19,7 +19,7 @@ A full-screen, beat-driven sci-fi data visualization — a woven light-field cor
 - [x] Repo trimmed to the files this refactor needs (demo images kept)
 - [x] Engine module: lifecycle, sizing, 4 quality tiers, seeded RNG, uneven beat clock
 - [x] Inner woven web + runner trails
-- [x] Ring band: 12 pre-rendered panel types, rulers, glowing rims, beat-driven rotation
+- [x] Ring band: 12 pre-rendered panel types, rulers, glowing rims, beat-driven rotation (panels are static per slot and only rotate with the band)
 - [ ] Outer beam strata, haze, flares, fly-out streaks
 - [ ] Comets and context-event mapping
 - [ ] Page shell (header + stage + panels), per-agent views, mini console

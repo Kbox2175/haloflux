@@ -381,11 +381,15 @@ export function createRingLayer({ random, params }) {
     }
   }
 
-  /** Beat hook: rotate, refresh a few panels, flash a couple. */
+  /**
+   * Beat hook: rotate, and flash a couple of panels.
+   * Panel CONTENT is intentionally static — a slot is rendered once and then
+   * only rotates with the band, so the ring reads as a fixed instrument rather
+   * than a screen full of noise.
+   */
   function onBeat() {
     if (rot.t >= rot.dur && rot.hold <= 0) ringMove();
     if (!slots.length) return;
-    for (let i = 0; i < Math.round(6 * params.dataFlicker); i++) pick(slots).c = null;
     for (let i = 0; i < Math.round(2 * params.dataFlicker); i++) pick(slots).flash = rr(0.35, 0.7);
   }
 
@@ -408,15 +412,14 @@ export function createRingLayer({ random, params }) {
     ctx.fillStyle = '#040506';
     ctx.fill('evenodd');
 
-    // data panels
-    let regen = 1;
+    // data panels: rendered once per slot, then they simply rotate with the band
     for (const s of slots) {
       const A = s.a + ringRot;
       if (s.flash > 0) s.flash = Math.max(0, s.flash - dt * 2.2);
       const sx = cx + Math.cos(A) * mid;
       const sy = cy + Math.sin(A) * mid;
       if (sx < -140 || sx > W + 140 || sy < -140 || sy > H + 140) continue;
-      if (!s.c || (regen > 0 && rnd() < 0.02)) { renderSlot(s); regen--; }
+      if (!s.c) renderSlot(s);
       ctx.save();
       ctx.rotate(A);
       const hh = s.hpx + 2;
