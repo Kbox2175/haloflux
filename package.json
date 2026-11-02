@@ -7,7 +7,8 @@
   "scripts": {
     "serve": "node tools/serve.mjs",
     "capture": "node tools/capture.mjs",
-    "check": "node --check src/engine/util.js && node --check src/engine/params.js && node --check src/engine/beat.js && node --check src/engine/state.js && node --check src/engine/web.js && node --check src/engine/ring.js && node --check src/engine/outer.js && node --check src/engine/index.js"
+    "check": "node --check src/engine/util.js && node --check src/engine/params.js && node --check src/engine/beat.js && node --check src/engine/state.js && node --check src/engine/web.js && node --check src/engine/ring.js && node --check src/engine/outer.js && node --check src/engine/index.js",
+    "smoke": "node tools/engine-smoke.mjs"
   },
   "license": "SEE LICENSE IN LICENSE"
 }

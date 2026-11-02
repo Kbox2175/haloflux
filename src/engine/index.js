@@ -282,6 +282,7 @@ export function createHaloflux(canvas, options = {}) {
       ported: PORTED.slice(),
       activity: { mode: activity.mode, level: activity.level },
       slots: ring.slotCount,
+      ringFocus: ring.focus,
       impulses: impulses.length,
       tick: lastTick
     };
