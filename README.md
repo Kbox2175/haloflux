@@ -20,6 +20,7 @@ A full-screen, beat-driven sci-fi data visualization — a woven light-field cor
 - [x] Engine module: lifecycle, sizing, 4 quality tiers, seeded RNG, uneven beat clock
 - [x] Inner woven web + runner trails
 - [x] Ring band: 12 pre-rendered panel types, rulers, glowing rims, beat-driven rotation (panels are static per slot and only rotate with the band)
+- [x] Rotation rule: every ≥0.5s the busiest ring panel (largest accumulated traffic) is rotated to the horizontal axis; ambient spins stop once one is aimed, and the winner is damped so a quiet channel stops holding the aim
 - [x] Outer beam strata (5 layers), haze bands, root flares, fly-out streaks — random by default; `dataDriven=1` (or any `pushImpulse({slot})`) makes beams respond to that ring panel instead
 - [x] Activity state machine (void / idle / run) with attack / release envelope
 - [x] Canvas pool for ring panels

@@ -57,6 +57,8 @@ export const PARAMS = [
   ['flareBright', '根部闪光 亮度', 0, 2, 0.05, '环外'],
   ['rimDensity', '内外缘细线 密度', 0.3, 3, 0.05, '圆环'],
   ['dataDriven', '光束数据驱动 (0=随机 1=响应)', 0, 1, 1, '圆环'],
+  ['rotateToData', '旋转对准最忙表盘 (0/1)', 0, 1, 1, '圆环'],
+  ['detectGap', '旋转检测最小间隔 (秒)', 0.2, 5, 0.1, '圆环'],
   ['depthBlur', '远景虚化 (环外远层)', 0, 5, 0.1, '空间层次'],
   ['depthDim', '远景亮度', 0, 1.5, 0.05, '空间层次'],
   ['webBlur', '圈内底层虚化', 0, 4, 0.1, '空间层次', 'web'],
@@ -76,7 +78,7 @@ export const BASE = {
   cometPerBeat: 1.1, cometBurst: 4, cometTrickle: 0, cometLines: 1, cometWidth: 1, cometBright: 1, cometGlow: 1.1, cometSpeed: 1, cometFollow: 0,
   beamBright: 1, beamBounce: 1, beamLen: 1, beamWidth: 1, beamGlow: 1, dashBright: 1, hazeCount: 8, hazeBright: 1,
   flyerCount: 1, flyerBright: 1, flyerWidth: 1, flyerSpeed: 1, burstRate: 1, burstSize: 1, burstBright: 1, flareRate: 1, flareBright: 1,
-  rimDensity: 1, depthBlur: 1.4, depthDim: 0.9, webBlur: 0.7, parallax: 0.6, bokeh: 16, bokehBright: 1, atmos: 1, ringShadow: 1, vignette: 0.7, dataDriven: 0
+  rimDensity: 1, depthBlur: 1.4, depthDim: 0.9, webBlur: 0.7, parallax: 0.6, bokeh: 16, bokehBright: 1, atmos: 1, ringShadow: 1, vignette: 0.7, dataDriven: 0, rotateToData: 1, detectGap: 0.5
 };
 
 /** The baked-in "my default" look from the original file. */

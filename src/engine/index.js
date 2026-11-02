@@ -66,6 +66,18 @@ export function createHaloflux(canvas, options = {}) {
   let lastTick = null;
   let ro = null;
 
+  /**
+   * Traffic per ring panel, in "data volume" units. The rotation rule reads
+   * this to decide which panel to aim at the horizontal axis.
+   */
+  let traffic = [];
+  let lastDetect = -1e9;
+
+  function syncTraffic() {
+    const n = ring.slotCount;
+    if (traffic.length !== n) traffic = new Array(n).fill(0);
+  }
+
   function resize() {
     // Measure the canvas itself (not its parent), so a caller can pin an exact
     // stage size for screenshot comparison.
@@ -84,6 +96,7 @@ export function createHaloflux(canvas, options = {}) {
     RMAX = Math.hypot(W - cx, H / 2) + 60;
     web.build(W, H, R, dpr);
     ring.build(R, RO);
+    syncTraffic();
     outer.build({ W, H, cx, cy, R, RO, RMAX, thS, DPR: dpr, FS: Q.farDown });
   }
 
@@ -110,12 +123,16 @@ export function createHaloflux(canvas, options = {}) {
       ctx.textBaseline = 'top';
       ctx.fillStyle = 'rgba(207,210,216,0.85)';
       ctx.fillText(
-        `PHASE 0 · SLICE 4   beat #${beat.beatN}   env ${beat.env.toFixed(2)}   ` +
+        `PHASE 0 · SLICE 5   beat #${beat.beatN}   env ${beat.env.toFixed(2)}   ` +
         `${W}×${H} @${dpr.toFixed(2)}   ${Q.name}   ${fps} fps   ${activity.mode}`,
         18, 16
       );
       ctx.fillStyle = 'rgba(107,111,120,0.9)';
-      ctx.fillText(`ported: ${PORTED.join(' · ')}`, 18, 34);
+      const focusTxt = ring.focus >= 0 ? `slot #${ring.focus} (aimed)` : 'no aim';
+      ctx.fillText(
+        `ported: ${PORTED.join(' · ')}   ${focusTxt}`,
+        18, 34
+      );
     }
   }
 
@@ -135,6 +152,12 @@ export function createHaloflux(canvas, options = {}) {
     web.update(dt, beat.env * (0.6 + 0.4 * level));
     ring.update(dt);
     outer.update(dt, beat.env * level, ring.rotation, beat.beatN);
+
+    // Traffic decays so a panel that stops producing stops winning.
+    if (traffic.length) {
+      for (let i = 0; i < traffic.length; i++) traffic[i] *= Math.exp(-dt * 0.6);
+      if (C.rotateToData && now - lastDetect >= C.detectGap * 1000) detectTraffic(now);
+    }
 
     draw(dt);
 
@@ -185,6 +208,30 @@ export function createHaloflux(canvas, options = {}) {
   }
 
   /**
+   * Rotation rule.
+   *
+   * Every `detectGap` seconds (default ≥ 0.5s) the engine reads each panel's
+   * accumulated traffic and, if one is producing significantly more than the
+   * rest, rotates the band so that panel sits on the horizontal axis (screen
+   * angle 0). The winner is damped afterwards, so a channel that has gone quiet
+   * stops holding the aim — the ring keeps tracking whatever is actually busy.
+   */
+  function detectTraffic(now) {
+    if (!C.rotateToData || !traffic.length) return null;
+    let best = -1;
+    let bestV = 0;
+    for (let i = 0; i < traffic.length; i++) {
+      if (traffic[i] > bestV) { bestV = traffic[i]; best = i; }
+    }
+    lastDetect = now == null ? T : now;
+    if (best < 0 || bestV < 1) return null;
+    ring.rotateToSlot(best, 0);
+    ring.focusSlot(best);
+    traffic[best] *= 0.35;
+    return { slot: best, value: bestV };
+  }
+
+  /**
    * Discrete event from the data link (tool_call / tool_result / compaction…).
    *
    * When `slot` is given, the event is anchored to that ring panel: the beam
@@ -203,6 +250,11 @@ export function createHaloflux(canvas, options = {}) {
       const angle = ring.slotAngle(impulse.slot);
       ring.flashSlotAt(angle);
       outer.impulse(angle, power, tint);
+      // accumulate the data volume that this panel just produced
+      if (traffic.length) {
+        const i = Math.max(0, Math.floor(impulse.slot)) % traffic.length;
+        traffic[i] += (Number(impulse.bytes) || Number(impulse.tokens) || 0) + power * 1000;
+      }
     } else {
       const angle = (random.rnd() * 2 - 1) * thS;
       outer.impulse(angle, power, tint);
@@ -257,6 +309,8 @@ export function createHaloflux(canvas, options = {}) {
     pushImpulse,
     pushTick,
     setMode,
+    detectTraffic,
+    get traffic() { return traffic.slice(); },
     getState,
     resize
   };

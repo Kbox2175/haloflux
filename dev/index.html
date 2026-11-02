@@ -28,7 +28,7 @@
 </head>
 <body>
 <div id="wrap"><canvas id="stage"></canvas></div>
-<div id="hint">phase 0 · slice 4 &nbsp;·&nbsp; <b>?quality=low|medium|high|ultra</b> &nbsp; <b>?seed=1</b> &nbsp; <b>?hud=0</b> &nbsp; <b>?stage=1280x408</b> &nbsp; <b>?demo=0</b></div>
+<div id="hint">phase 0 · slice 5 &nbsp;·&nbsp; <b>?quality=low|medium|high|ultra</b> &nbsp; <b>?seed=1</b> &nbsp; <b>?hud=0</b> &nbsp; <b>?stage=1280x408</b> &nbsp; <b>?demo=0</b> &nbsp; <b>?params=rotateToData:0</b></div>
 
 <script type="module">
   import { createHaloflux } from '../src/engine/index.js';
@@ -66,24 +66,32 @@
     if (e.key === 'p') halo.start();
   });
 
-  // ?demo=1 fires data at random ring panels, so you can verify that a beam
-  // always originates from the panel that produced the event.
+  // ?demo=1 fires data at ring panels. To exercise the rotation rule the demo
+  // keeps one "hot" channel that changes every few seconds, so you can watch
+  // the ring chase it and then switch aim when the hot channel moves.
   if (q.get('demo') !== '0') {
     let demoTimer = null;
-    let demoSlot = 0;
-    const demoState = halo.getState().slots || 1;
+    let hotSlot = 0;
+    let hotUntil = 0;
 
     function fireDemo() {
-      demoSlot = Math.floor(Math.random() * (halo.getState().slots || demoState));
+      const slots = halo.getState().slots || 1;
+      const now = performance.now();
+      if (now > hotUntil) {
+        hotSlot = Math.floor(Math.random() * slots);
+        hotUntil = now + 5000 + Math.random() * 4000;
+      }
+      const isHot = Math.random() < 0.72;
+      const slot = isHot ? hotSlot : Math.floor(Math.random() * slots);
       halo.pushImpulse({
-        slot: demoSlot,
-        power: 0.45 + Math.random() * 0.55,
+        slot,
+        power: isHot ? 0.8 + Math.random() * 0.2 : 0.35 + Math.random() * 0.3,
         kind: Math.random() < 0.3 ? 'tool_result' : 'tool_call'
       });
-      demoTimer = setTimeout(fireDemo, 500 + Math.random() * 2200);
+      demoTimer = setTimeout(fireDemo, 250 + Math.random() * 1200);
     }
     fireDemo();
-    window.__demoSlot = () => demoSlot;
+    window.__demoSlot = () => hotSlot;
   }
 </script>
 </body>

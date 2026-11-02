@@ -5,7 +5,7 @@
  *
  * @module engine/ring
  */
-import { TAU, clamp, easeIO, easeOX, normA, hash, acquireCanvas, releaseCanvas } from './util.js';
+import { TAU, clamp, easeIO, normA, hash, acquireCanvas, releaseCanvas } from './util.js';
 
 /** Supersampling factor of each slot canvas (quality-tunable later). */
 let RING_SC = 2.4;
@@ -42,6 +42,8 @@ export function createRingLayer({ random, params }) {
   let band = 0;
   let rot = { from: 0, to: 0, t: 1, dur: 1, hold: 0, ease: easeIO };
   let ringRot = 0;
+  /** Slot currently aimed at the aim point, or -1. */
+  let focus = -1;
 
   const fmtNum = () => {
     const k = rnd();
@@ -345,18 +347,61 @@ export function createRingLayer({ random, params }) {
     }
     rot = { from: 0, to: 0, t: 1, dur: 1, hold: 0, ease: easeIO };
     ringRot = 0;
+    focus = -1;
   }
 
-  /** Pick the next rotation: fast spin / snap-and-stop / small nudge. */
+  /**
+   * Apply a smooth rotation of `delta` radians. `dur` defaults to a calm
+   * 1.1–1.8s so the band never feels whiplashed.
+   */
+  function rotateTo(delta, dur, hold) {
+    const d = delta * params.ringSpeed;
+    rot = {
+      from: ringRot,
+      to: ringRot + d,
+      t: 0,
+      dur: dur || rr(1.1, 1.8),
+      ease: easeIO,
+      hold: hold == null ? rr(0.25, 0.6) * params.ringPause : hold
+    };
+  }
+
+  /**
+   * Rotate the band so that slot `i` lands on screen angle `atAngle`.
+   * `atAngle` 0 = horizontal (right of centre) — the aim point.
+   * Takes the shortest signed path and returns it.
+   */
+  function rotateToSlot(i, atAngle) {
+    if (!slots.length) return 0;
+    const n = slots.length;
+    const s = slots[((i % n) + n) % n];
+    const want = (atAngle == null ? 0 : atAngle) - s.a;
+    let d = (((want - ringRot) % TAU) + TAU) % TAU;
+    if (d > Math.PI) d -= TAU;
+    if (Math.abs(d) < 0.02) {
+      rot = { from: ringRot, to: ringRot, t: 0, dur: 0.25, ease: easeIO, hold: 0.5 * params.ringPause };
+    } else {
+      rotateTo(d);
+    }
+    return d;
+  }
+
+  function focusSlot(i) {
+    focus = ((i % slots.length) + slots.length) % slots.length;
+  }
+
+  /** Ambient spin — deliberately slow, and it never fights a data target. */
   function ringMove() {
     const r = rnd();
-    let d, dur, ease;
-    if (r < 0.22) { d = rr(1.1, 2.1); dur = rr(0.7, 1.05); ease = easeIO; }
-    else if (r < 0.64) { d = rr(0.14, 0.48); dur = rr(0.18, 0.38); ease = easeOX; }
-    else { d = rr(0.05, 0.18); dur = rr(0.3, 0.6); ease = easeIO; }
+    let d, dur;
+    if (r < 0.12) { d = rr(0.9, 1.5); dur = rr(1.2, 1.8); }
+    else if (r < 0.45) { d = rr(0.1, 0.35); dur = rr(0.5, 0.9); }
+    else { d = rr(0.03, 0.12); dur = rr(0.5, 0.9); }
     if (rnd() < 0.08) d = -d * 0.5;
-    d *= params.ringSpeed;
-    rot = { from: ringRot, to: ringRot + d, t: 0, dur, ease, hold: rr(0.04, 0.4) * params.ringPause };
+    rot = {
+      from: ringRot, to: ringRot + d, t: 0, dur,
+      ease: easeIO, hold: rr(0.4, 0.9) * params.ringPause
+    };
   }
 
   /** Flash the slot closest to a given screen angle (a comet hitting the ring). */
@@ -387,7 +432,11 @@ export function createRingLayer({ random, params }) {
    * than a screen full of noise.
    */
   function onBeat() {
-    if (rot.t >= rot.dur && rot.hold <= 0) ringMove();
+    // A data-driven target keeps the aim: never spin away from it.
+    if (rot.t >= rot.dur && rot.hold <= 0) {
+      if (params.rotateToData && focus >= 0) return;
+      ringMove();
+    }
     if (!slots.length) return;
     for (let i = 0; i < Math.round(2 * params.dataFlicker); i++) pick(slots).flash = rr(0.35, 0.7);
   }
@@ -412,7 +461,8 @@ export function createRingLayer({ random, params }) {
     ctx.fill('evenodd');
 
     // data panels: rendered once per slot, then they simply rotate with the band
-    for (const s of slots) {
+    for (let si = 0; si < slots.length; si++) {
+      const s = slots[si];
       const A = s.a + ringRot;
       if (s.flash > 0) s.flash = Math.max(0, s.flash - dt * 2.2);
       const sx = cx + Math.cos(A) * mid;
@@ -429,6 +479,21 @@ export function createRingLayer({ random, params }) {
         ctx.drawImage(s.c, R, -hh / 2, band, hh);
         ctx.globalAlpha = 1;
         ctx.globalCompositeOperation = 'source-over';
+      }
+      // the focused panel keeps a steady glow, so you can see which one the
+      // rotation rule is aiming at
+      if (si === focus) {
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.globalAlpha = 0.24;
+        ctx.drawImage(s.c, R, -hh / 2, band, hh);
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+        // a bright marker on the outer rim at the aim point
+        const ra = RO + 5;
+        ctx.beginPath();
+        ctx.arc(ra, 0, 1.6, 0, TAU);
+        ctx.fillStyle = 'rgba(255,255,255,.85)';
+        ctx.fill();
       }
       ctx.restore();
     }
@@ -481,6 +546,19 @@ export function createRingLayer({ random, params }) {
     ctx.globalCompositeOperation = 'source-over';
     arc(RO, 1.3, 0.95);
 
+    // aim point: the horizontal axis the rotation rule aligns the busiest
+    // panel to. Visible even when nothing is focused.
+    ctx.beginPath();
+    ctx.arc(RO + 9, 0, 2.2, 0, TAU);
+    ctx.fillStyle = 'rgba(152,224,207,.55)';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(R + 6, 0);
+    ctx.lineTo(R + 16, 0);
+    ctx.strokeStyle = 'rgba(152,224,207,.3)';
+    ctx.lineWidth = 0.7;
+    ctx.stroke();
+
     ctx.beginPath();
     tick((1 * Math.PI) / 180, (ca, sa) => {
       ctx.moveTo(ca * (R - 2), sa * (R - 2));
@@ -510,12 +588,15 @@ export function createRingLayer({ random, params }) {
   return {
     build,
     slotAngle,
+    rotateToSlot,
+    focusSlot,
     onBeat,
     update,
     draw,
     flashSlotAt,
     get rotation() { return ringRot; },
     get slotCount() { return slots.length; },
+    get focus() { return focus; },
     set supersample(v) { RING_SC = v; }
   };
 }
