@@ -1,0 +1,13 @@
+{
+  "name": "haloflux",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Agent-context visualization engine (Canvas 2D), refactored from the HALOFLUX single-file demo.",
+  "scripts": {
+    "serve": "node tools/serve.mjs",
+    "capture": "node tools/capture.mjs",
+    "check": "node --check src/engine/util.js && node --check src/engine/params.js && node --check src/engine/beat.js && node --check src/engine/web.js && node --check src/engine/ring.js && node --check src/engine/index.js"
+  },
+  "license": "SEE LICENSE IN LICENSE"
+}
