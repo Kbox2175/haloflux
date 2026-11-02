@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>haloflux · engine dev harness</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #08090b; overflow: hidden; }
+  #wrap { position: absolute; inset: 0; overflow: hidden; }
+  #stage { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+  /* Same post-processing overlay as lab.html's .stage::after — scanlines plus
+     the vignette. Keeping it here makes screenshots comparable with the
+     baselines captured from the original page. */
+  #wrap::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background:
+      repeating-linear-gradient(0deg, rgba(0,0,0,.18) 0 1px, transparent 1px 3px),
+      radial-gradient(ellipse at 40% 50%, transparent 55%, rgba(0,0,0,.55) 100%);
+  }
+
+  #hint {
+    position: absolute; right: 14px; bottom: 12px; z-index: 2;
+    font: 11px ui-monospace, Consolas, monospace; color: #6b6f78; user-select: none;
+  }
+  #hint b { color: #cfd2d8; font-weight: 600; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="stage"></canvas></div>
+<div id="hint">phase 0 · slice 2 &nbsp;·&nbsp; <b>?quality=low|medium|high|ultra</b> &nbsp; <b>?seed=1</b> &nbsp; <b>?hud=0</b> &nbsp; <b>?stage=1280x408</b></div>
+
+<script type="module">
+  import { createHaloflux } from '../src/engine/index.js';
+
+  const q = new URLSearchParams(location.search);
+  const wrap = document.getElementById('wrap');
+  const canvas = document.getElementById('stage');
+
+  // ?stage=WxH pins the canvas (and its overlay) so a screenshot can be
+  // compared 1:1 with the original lab.html stage: 1280x408 at a 1280x720 window.
+  const stage = q.get('stage');
+  if (stage) {
+    const [w, h] = stage.split('x').map(Number);
+    Object.assign(wrap.style, { right: 'auto', bottom: 'auto', width: w + 'px', height: h + 'px' });
+    Object.assign(canvas.style, { right: 'auto', bottom: 'auto', width: w + 'px', height: h + 'px' });
+  }
+
+  // ?params=webPulseAmp:0,webPulseBase:0 — ad-hoc parameter overrides for A/B checks
+  const overrides = {};
+  for (const pair of (q.get('params') || '').split(',').filter(Boolean)) {
+    const [k, v] = pair.split(':');
+    overrides[k] = Number(v);
+  }
+
+  const halo = createHaloflux(canvas, {
+    seed: Number(q.get('seed') || 1),
+    quality: q.get('quality') || 'high',
+    hud: q.get('hud') !== '0',
+    params: overrides
+  });
+
+  window.__halo = halo;
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 's') halo.stop();
+    if (e.key === 'p') halo.start();
+  });
+</script>
+</body>
+</html>

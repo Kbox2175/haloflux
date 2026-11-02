@@ -10,15 +10,33 @@ A full-screen, beat-driven sci-fi data visualization — a woven light-field cor
 
 ![preview](preview.png)
 
+## Development status
+
+> The single-file demo is being refactored into a reusable engine that reads live
+> agent-context telemetry. This section tracks progress only; the roadmap lives
+> in [PLAN.md](PLAN.md).
+
+- [x] Repo trimmed to the files this refactor needs (demo images kept)
+- [x] Engine module: lifecycle, sizing, 4 quality tiers, seeded RNG, uneven beat clock
+- [x] Inner woven web + runner trails
+- [x] Ring band: 12 pre-rendered panel types, rulers, glowing rims, beat-driven rotation
+- [ ] Outer beam strata, haze, flares, fly-out streaks
+- [ ] Comets and context-event mapping
+- [ ] Page shell (header + stage + panels), per-agent views, mini console
+- [ ] Data link (`dsh-token-meter` + `dsh-context` → impulse/tick)
+- [ ] Unlock overlay and opening animation (Tauri)
+
+Dev harness: `npm run serve` → http://127.0.0.1:5173/
+
 ## Files
 
 | File | Description |
 |---|---|
-| `lab.html` | Desktop console edition (best at 16:9 full screen) |
-| `mobile.html` | Mobile-compatible edition (portrait/landscape adaptive, lighter particle load) |
-| `index.html` | Entry page: opens `mobile.html` on touch devices, `lab.html` otherwise |
+| `lab.html` | Original single-file console edition (reference build during the refactor) |
+| `src/engine/` | The refactored engine module (`createHaloflux`) |
+| `dev/index.html` | Development harness for the engine |
 | `audio/sw421k.mp3` | Background music (see Credits) |
-| `wallpaper/` | Wallpaper Engine / Lively Wallpaper edition (see below) |
+| `tools/` | Dev helpers: static server, headless capture, luminance comparison |
 
 Showcase video: https://b23.tv/mBUoC3r
 
