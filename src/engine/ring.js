@@ -5,7 +5,7 @@
  *
  * @module engine/ring
  */
-import { TAU, clamp, easeIO, easeOX, normA, hash } from './util.js';
+import { TAU, clamp, easeIO, easeOX, normA, hash, acquireCanvas, releaseCanvas } from './util.js';
 
 /** Supersampling factor of each slot canvas (quality-tunable later). */
 let RING_SC = 2.4;
@@ -270,11 +270,9 @@ export function createRingLayer({ random, params }) {
 
   function renderSlot(s) {
     const h = s.hpx;
-    const c = document.createElement('canvas');
-    c.width = Math.ceil(band * RING_SC);
-    c.height = Math.ceil((h + 2) * RING_SC);
+    const c = acquireCanvas(band * RING_SC, (h + 2) * RING_SC);
     const x = c.getContext('2d');
-    x.scale(RING_SC, RING_SC);
+    x.setTransform(RING_SC, 0, 0, RING_SC, 0, 0);
     x.textBaseline = 'top';
 
     const RB = rimW();
@@ -334,6 +332,7 @@ export function createRingLayer({ random, params }) {
   /** Lay out slots around the band; called whenever R/RO change. */
   function build(R, RO) {
     band = RO - R;
+    if (slots.length) for (const s of slots) if (s.c) releaseCanvas(s.c);
     slots = [];
     const mid = R + band * 0.42;
     let a = 0;

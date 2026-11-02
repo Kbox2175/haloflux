@@ -12,6 +12,8 @@ import { BASE, PRESETS, resolveQuality } from './params.js';
 import { createBeat } from './beat.js';
 import { createWebLayer } from './web.js';
 import { createRingLayer } from './ring.js';
+import { createOuterLayer } from './outer.js';
+import { createStateMachine } from './state.js';
 
 /**
  * @typedef {Object} HalofluxOptions
@@ -26,7 +28,7 @@ import { createRingLayer } from './ring.js';
  */
 
 /** Layers ported so far — used by the HUD and by the parity checklist. */
-export const PORTED = ['lifecycle', 'sizing', 'quality', 'beat', 'background', 'inner-web', 'runners', 'ring-band'];
+export const PORTED = ['lifecycle', 'sizing', 'quality', 'beat', 'background', 'inner-web', 'runners', 'ring-band', 'outer-beams', 'haze', 'flares', 'flyers', 'state'];
 
 /**
  * @param {HTMLCanvasElement} canvas
@@ -53,9 +55,11 @@ export function createHaloflux(canvas, options = {}) {
   const beat = createBeat();
   const web = createWebLayer({ random, params: C });
   const ring = createRingLayer({ random, params: C });
+  const outer = createOuterLayer({ random, params: C });
+  const activity = createStateMachine({ mode: 'run' });
 
   let Q = resolveQuality(opt.quality);
-  let W = 0, H = 0, cx = 0, cy = 0, R = 0, RO = 0, thV = 0, dpr = 1;
+  let W = 0, H = 0, cx = 0, cy = 0, R = 0, RO = 0, thV = 0, thS = 0, RMAX = 0, dpr = 1;
   let running = false, destroyed = false, rafId = 0, last = 0, T = 0;
   let frames = 0, fps = 0, fpsMark = 0;
   const impulses = [];
@@ -76,8 +80,11 @@ export function createHaloflux(canvas, options = {}) {
     R = Math.max(H * 0.78, W * 0.3);
     RO = R + Math.max(90, Math.min(240, H * 0.3, W * 0.13)) * C.ringWidth;
     thV = Math.asin(Math.min(1, (H / 2 + 60) / R));
+    thS = Math.asin(Math.min(1, (H / 2 + 40) / RO));
+    RMAX = Math.hypot(W - cx, H / 2) + 60;
     web.build(W, H, R, dpr);
     ring.build(R, RO);
+    outer.build({ W, H, cx, cy, R, RO, RMAX, thS, DPR: dpr, FS: Q.farDown });
   }
 
   /** Slice 1 placeholder: background + pulsing core + ring skeleton + HUD. */
@@ -90,6 +97,9 @@ export function createHaloflux(canvas, options = {}) {
 
     const e = beat.env;
     web.draw(ctx, { cx, cy, R, env: e });
+
+    outer.draw(ctx, { W, H, cx, cy, R, RO, RMAX, thS, DPR: dpr, FS: Q.farDown });
+
     ring.draw(ctx, { cx, cy, R, RO, thV, W, H, dt });
 
     if (opt.hud) {
@@ -100,8 +110,8 @@ export function createHaloflux(canvas, options = {}) {
       ctx.textBaseline = 'top';
       ctx.fillStyle = 'rgba(207,210,216,0.85)';
       ctx.fillText(
-        `PHASE 0 · SLICE 3   beat #${beat.beatN}   env ${beat.env.toFixed(2)}   ` +
-        `${W}×${H} @${dpr.toFixed(2)}   ${Q.name}   ${fps} fps`,
+        `PHASE 0 · SLICE 4   beat #${beat.beatN}   env ${beat.env.toFixed(2)}   ` +
+        `${W}×${H} @${dpr.toFixed(2)}   ${Q.name}   ${fps} fps   ${activity.mode}`,
         18, 16
       );
       ctx.fillStyle = 'rgba(107,111,120,0.9)';
@@ -118,11 +128,13 @@ export function createHaloflux(canvas, options = {}) {
     beat.update(dt, C.tempo, (n) => {
       web.onBeat(n);
       ring.onBeat();
-      // later slices: comet spawn / outer pulses
+      outer.onBeat(n);
     });
 
-    web.update(dt, beat.env);
+    const level = activity.update(dt);
+    web.update(dt, beat.env * (0.6 + 0.4 * level));
     ring.update(dt);
+    outer.update(dt, beat.env * level, ring.rotation, beat.beatN);
 
     draw(dt);
 
@@ -187,6 +199,11 @@ export function createHaloflux(canvas, options = {}) {
     lastTick = tick;
   }
 
+  /** void | idle | run — drives the scene's attack/release envelope. */
+  function setMode(mode) {
+    activity.setMode(mode);
+  }
+
   function getState() {
     return {
       W, H, cx, cy, R, RO, dpr,
@@ -194,6 +211,7 @@ export function createHaloflux(canvas, options = {}) {
       tempo: C.tempo, fps,
       quality: Q.name,
       ported: PORTED.slice(),
+      activity: { mode: activity.mode, level: activity.level },
       impulses: impulses.length,
       tick: lastTick
     };
@@ -220,6 +238,7 @@ export function createHaloflux(canvas, options = {}) {
     setQuality,
     pushImpulse,
     pushTick,
+    setMode,
     getState,
     resize
   };

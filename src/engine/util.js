@@ -56,3 +56,30 @@ export function mkd(w, h, d) {
   c.x.setTransform(d, 0, 0, d, 0, 0);
   return c;
 }
+
+/**
+ * Small canvas pool. The ring rebuilds a canvas per data slot and drops it on
+ * every resize; recycling keeps the GC quiet on long runs.
+ */
+const POOL = [];
+const POOL_MAX = 24;
+
+export function acquireCanvas(w, h) {
+  const cw = Math.max(1, Math.ceil(w));
+  const ch = Math.max(1, Math.ceil(h));
+  let idx = -1;
+  for (let i = 0; i < POOL.length; i++) {
+    if (POOL[i].width === cw && POOL[i].height === ch) { idx = i; break; }
+  }
+  const c = idx >= 0 ? POOL.splice(idx, 1)[0] : document.createElement('canvas');
+  if (c.width !== cw || c.height !== ch) { c.width = cw; c.height = ch; }
+  c.x = c.getContext('2d');
+  c.x.setTransform(1, 0, 0, 1, 0, 0);
+  c.x.clearRect(0, 0, cw, ch);
+  return c;
+}
+
+export function releaseCanvas(c) {
+  if (!c || POOL.length >= POOL_MAX) return;
+  POOL.push(c);
+}
