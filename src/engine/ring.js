@@ -15,15 +15,15 @@ const TINTS = [
   [232, 234, 240], [196, 184, 246], [196, 184, 246], [168, 222, 214], [206, 212, 150]
 ];
 
-const HEAD = ['SOLVER/02', 'EXTRACT', 'REF.SCENE 07', 'METHOD M04', 'CHECK', 'RESIDUAL', 'PAPER 37',
-  'AGENT 09', 'BUFFER A', 'DIFF FIELD', 'STEP 1284', 'MESH 64x64', 'PROJECT', 'ADVECT', 'BC / WALL',
-  'LBM D2Q9', 'QUEUE', 'TRACE', 'EQ.(4)', 'FIG.3', 'VALIDATE', 'SCENE 12'];
+const HEAD = ['求解器/02', '提取', '参考场景 07', '方法 M04', '校验', '残差', '论文 37',
+  '智能体 09', '缓冲区 A', '差分场', '步 1284', '网格 64×64', '投影', '平流', '边界 / 壁面',
+  '格点法 D2Q9', '队列', '追踪', '式(4)', '图 3', '验证', '场景 12'];
 
-const KEYS = ['dt', 'CFL', 'nu', 'Re', 'tol', 'iter', 'L2', 'mass', 'div', 'u_max', 'rho', 'err', 'grid', 'seed'];
+const KEYS = ['步长', '柯朗', '粘度', '雷诺', '容差', '迭代', 'L2', '质量', '散度', '速度', '密度', '误差', '网格', '种子'];
 
-const CODE_T = ['load()', 'step(u)', 'proj(p)', 'bc.apply', 'solve()', 'grad p', 'div u', 'assert',
-  'f_eq', 'stream', 'collide', 'ok', 'PASS', 'ref#12', 'diff', 'L2<tol', 'u*', '->', '==', 'dt/2',
-  'emit', 'push', 'read', 'fig3', 'eq4'];
+const CODE_T = ['载入()', '步进(u)', '投影(p)', '边界.应用', '求解()', '梯度 p', '散度 u', '断言',
+  '均衡', '流场', '碰撞', '通过', '合格', '引用#12', '差分', 'L2<容差', 'u*', '→', '==', 'dt/2',
+  '发射', '推送', '读取', '图3', '式4'];
 
 const rgba = (t, a) => `rgba(${t[0]},${t[1]},${t[2]},${a})`;
 
@@ -75,7 +75,7 @@ export function createRingLayer({ random, params }) {
 
   // ---- block renderers: (ctx, x0, x1, y0, y1, tint) — x is radial, y is tangential ----
   function header(c, x0, x1, y, t) {
-    c.font = `700 4.3px ui-monospace, Consolas, monospace`;
+    c.font = `700 5.2px ui-monospace, Consolas, monospace`;
     c.fillStyle = rgba(t, 0.95);
     c.fillText(pick(HEAD), x0, y);
     c.fillStyle = rgba(t, 0.55);
@@ -88,7 +88,7 @@ export function createRingLayer({ random, params }) {
   const BLOCKS = {
     code(c, x0, x1, y0, y1, t) {
       let y = header(c, x0, x1, y0, t);
-      c.font = `500 3.5px ui-monospace, Consolas, monospace`;
+      c.font = `500 4.4px ui-monospace, Consolas, monospace`;
       let n = 1 + ((rnd() * 40) | 0);
       while (y < y1 - 3.5) {
         c.fillStyle = rgba(t, 0.3);
@@ -106,7 +106,7 @@ export function createRingLayer({ random, params }) {
     },
     kv(c, x0, x1, y0, y1, t) {
       let y = y1 - y0 > 18 ? header(c, x0, x1, y0, t) : y0 + 1;
-      c.font = `500 3.6px ui-monospace, Consolas, monospace`;
+      c.font = `500 4.5px ui-monospace, Consolas, monospace`;
       while (y < y1 - 4) {
         c.fillStyle = rgba(t, 0.5);
         c.fillText(pick(KEYS), x0, y);
@@ -152,7 +152,7 @@ export function createRingLayer({ random, params }) {
       const y = header(c, x0, x1, y0, t);
       const n = 6 + ((rnd() * 10) | 0);
       const bh = (y1 - y - 1) / n;
-      c.font = `500 3px ui-monospace, Consolas, monospace`;
+      c.font = `500 3.8px ui-monospace, Consolas, monospace`;
       for (let i = 0; i < n; i++) {
         const v = rr(0.1, 1);
         const yy = y + i * bh;
@@ -164,11 +164,11 @@ export function createRingLayer({ random, params }) {
     },
     prog(c, x0, x1, y0, y1, t) {
       let y = y1 - y0 > 18 ? header(c, x0, x1, y0, t) : y0 + 1;
-      c.font = `500 3.4px ui-monospace, Consolas, monospace`;
+      c.font = `500 4.3px ui-monospace, Consolas, monospace`;
       while (y < y1 - 5) {
         const p = rnd();
         c.fillStyle = rgba(t, 0.55);
-        c.fillText(pick(['read', 'build', 'review', 'qa', 'sync', 'diff']), x0, y);
+        c.fillText(pick(['读取', '构建', '审阅', '质检', '同步', '差分']), x0, y);
         c.fillStyle = rgba(t, 0.9);
         c.textAlign = 'right';
         c.fillText(((p * 100) | 0) + '%', x1, y);
@@ -306,7 +306,7 @@ export function createRingLayer({ random, params }) {
 
     // outer index column: tiny ids + tick groups
     const pitch = rr(8, 12);
-    x.font = `600 3.1px ui-monospace, Consolas, monospace`;
+    x.font = `600 4px ui-monospace, Consolas, monospace`;
     for (let yy = rr(1, pitch); yy < h - 2; yy += pitch) {
       if (rnd() < 0.15) continue;
       let xx = oz0 + rr(0, 3);

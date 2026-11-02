@@ -151,14 +151,19 @@ export function createHaloflux(canvas, options = {}) {
       ctx.textBaseline = 'top';
       ctx.fillStyle = 'rgba(207,210,216,0.85)';
       ctx.fillText(
-        `PHASE 0 · SLICE 5   beat #${beat.beatN}   env ${beat.env.toFixed(2)}   ` +
-        `${W}×${H} @${dpr.toFixed(2)}   ${Q.name}   ${fps} fps   ${activity.mode}`,
+        `阶段 0 · 切片 5   节拍 #${beat.beatN}   包络 ${beat.env.toFixed(2)}   ` +
+        `${W}×${H} @${dpr.toFixed(2)}   ${Q.name}   ${fps} 帧/秒   ${activity.mode === 'run' ? '运行' : activity.mode === 'idle' ? '空闲' : '无会话'}`,
         18, 16
       );
       ctx.fillStyle = 'rgba(107,111,120,0.9)';
-      const focusTxt = ring.focus >= 0 ? `slot #${ring.focus} (aimed)` : 'no aim';
+      const focusTxt = ring.focus >= 0 ? `表盘 #${ring.focus}（已对准）` : '未对准';
+      const labels = {
+        lifecycle: '生命周期', sizing: '尺寸', quality: '画质', beat: '节拍', background: '背景',
+        'inner-web': '内层网线', runners: '亮线', 'ring-band': '环带',
+        'outer-beams': '外层光束', haze: '雾气', flares: '闪光', flyers: '流线', state: '状态机'
+      };
       ctx.fillText(
-        `ported: ${PORTED.join(' · ')}   ${focusTxt}`,
+        `已移植: ${PORTED.map((p) => labels[p] || p).join(' · ')}   ${focusTxt}`,
         18, 34
       );
     }

@@ -28,7 +28,7 @@
 </head>
 <body>
 <div id="wrap"><canvas id="stage"></canvas></div>
-<div id="hint">phase 0 · slice 5 &nbsp;·&nbsp; <b>?quality=low|medium|high|ultra</b> &nbsp; <b>?seed=1</b> &nbsp; <b>?hud=0</b> &nbsp; <b>?stage=1280x408</b> &nbsp; <b>?data=none</b> &nbsp; <b>?params=rotateToData:0</b></div>
+<div id="hint">阶段 0 · 切片 5 &nbsp;·&nbsp; <b>?quality=low|medium|high|ultra</b> &nbsp; <b>?seed=1</b> &nbsp; <b>?hud=0</b> &nbsp; <b>?stage=1280x408</b> &nbsp; <b>?data=none</b> &nbsp; <b>?params=rotateToData:0</b></div>
 
 <script type="module">
   import { createHaloflux } from '../src/engine/index.js';
@@ -79,7 +79,7 @@
           ? `running turn ${s.link.turn} step ${s.link.step} tps ${s.link.tps.toFixed(1)} ` +
             `ctx ${s.link.contextTokens}/${s.link.contextLimit} tools ${s.link.tools}`
           : 'idle';
-        console.log(`[haloflux] aim=${s.ringFocus} ${peak}`);
+        console.log(`[haloflux] 对准=${s.ringFocus} ${peak}`);
       }
     }, 1000);
   }

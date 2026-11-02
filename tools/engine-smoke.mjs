@@ -9,6 +9,8 @@
  *   node tools/engine-smoke.mjs
  */
 const calls = { drawImage: 0, stroke: 0, fillText: 0, createRadialGradient: 0 };
+const texts = [];
+const CJK = /[一-鿿]/;
 
 function fakeGradient() {
   const stops = [];
@@ -53,7 +55,7 @@ function makeCtx(label) {
     clip: noop,
     fill: noop,
     stroke: () => { calls.stroke++; },
-    fillText: (t) => { calls.fillText++; if (!ctx.__lastText) ctx.__lastText = t; },
+    fillText: (t) => { calls.fillText++; texts.push(String(t)); },
     measureText: () => ({ width: 10 }),
     drawImage: () => { calls.drawImage++; },
     quadraticCurveTo: noop,
@@ -151,6 +153,8 @@ check('frame loop ran', frames === 240, `${frames}`);
 check('layers drew something', calls.drawImage > 0, `drawImage=${calls.drawImage}`);
 check('beams stroked', calls.stroke > 0, `stroke=${calls.stroke}`);
 check('panel text rendered', calls.fillText > 0, `fillText=${calls.fillText}`);
+check('ring panels render Chinese labels', texts.some((t) => CJK.test(t)),
+  `sample=${JSON.stringify(texts.slice(0, 6))}`);
 
 // data-driven path: a few small bursts on one panel, then one big burst on
 // another — the rule must aim at whichever accumulated the most.

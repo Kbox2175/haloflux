@@ -34,7 +34,7 @@ export function createSimulatedSource(options = {}) {
     turn: 0,
     step: 0,
     model: 'deepseek-chat',
-    sessionTitle: 'simulated-session',
+    sessionTitle: '模拟会话',
     tools: [],
     feed: [],
     tokenQueue: [],
@@ -133,7 +133,7 @@ export function createSimulatedSource(options = {}) {
       // stream an answer
       const words = 18 + Math.floor(Math.random() * 40);
       state.inputTokens = Math.min(state.contextLimit - 2000, state.inputTokens + words);
-      fire('user', { text: 'simulated user prompt' });
+      fire('user', { text: '模拟用户输入' });
       startStream(words);
       schedule(2400);
       return;
