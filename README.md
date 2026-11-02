@@ -20,10 +20,10 @@ A full-screen, beat-driven sci-fi data visualization — a woven light-field cor
 - [x] Engine module: lifecycle, sizing, 4 quality tiers, seeded RNG, uneven beat clock
 - [x] Inner woven web + runner trails
 - [x] Ring band: 12 pre-rendered panel types, rulers, glowing rims, beat-driven rotation (panels are static per slot and only rotate with the band)
-- [x] Outer beam strata (5 layers), haze bands, root flares, fly-out streaks
+- [x] Outer beam strata (5 layers), haze bands, root flares, fly-out streaks — random by default; `dataDriven=1` (or any `pushImpulse({slot})`) makes beams respond to that ring panel instead
 - [x] Activity state machine (void / idle / run) with attack / release envelope
 - [x] Canvas pool for ring panels
-- [ ] Comets and context-event mapping
+- [ ] Comets (grouped light bundles) and the remaining event mappings
 - [ ] Page shell (header + stage + panels), per-agent views, mini console
 - [ ] Data link (`dsh-token-meter` + `dsh-context` → impulse/tick)
 - [ ] Unlock overlay and opening animation (Tauri)

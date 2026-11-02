@@ -21,6 +21,7 @@ export function createOuterLayer({ random, params }) {
   let flyers = [];
   let flyBands = [];
   let wedges = [];
+  let eventBeams = [];
   let laneC = null;
   let farC = null;
   let GR = {};
@@ -149,6 +150,35 @@ export function createOuterLayer({ random, params }) {
     });
   }
 
+  /**
+   * A data-driven beam: fired from the exact angle of the ring panel that
+   * produced the event. Its root stays on the ring; length follows `power`.
+   * Once any impulse arrives the ambient random kicks stop (params.dataDriven),
+   * so what you see is the data, not decoration.
+   */
+  function impulse(angle, power = 1, tint = 0) {
+    const p = Math.max(0, Math.min(1, power));
+    eventBeams.push({
+      a: angle - ringRot, power: p, age: 0,
+      life: rr(0.9, 1.5), tint, seed: rnd() * 1000
+    });
+    if (eventBeams.length > 32) eventBeams.shift();
+
+    // a short packet of streaks leaves with the beam
+    const n = 6 + Math.round(p * 16);
+    for (let i = 0; i < n; i++) {
+      flyers.push({
+        a: angle - ringRot + gauss() * 0.012,
+        len: rr(40, 170) * (0.5 + p),
+        r: view.RO + rr(0, 6),
+        sp: rr(500, 950),
+        lw: rnd() < 0.2 ? 1.3 : rr(0.6, 1),
+        lv: p > 0.7 ? 2 : 1, tint, burst: true
+      });
+    }
+    spawnFlare(angle - ringRot);
+  }
+
   function hazeEnv(h) {
     const a = Math.min(1, h.age / 0.12);
     const o = h.age > h.life ? Math.max(0, 1 - (h.age - h.life) / 0.6) : 1;
@@ -226,6 +256,11 @@ export function createOuterLayer({ random, params }) {
       if (p.life <= 0) pulses.splice(i, 1);
     }
 
+    for (let i = eventBeams.length - 1; i >= 0; i--) {
+      eventBeams[i].age += dt;
+      if (eventBeams[i].age > eventBeams[i].life) eventBeams.splice(i, 1);
+    }
+
     for (const Lr of strandLayers) {
       const rot2 = ringRot * Lr.rotK + Lr.off;
       for (const w of Lr.wedges) {
@@ -273,22 +308,30 @@ export function createOuterLayer({ random, params }) {
 
   function onBeat(n) {
     beatN = n;
-    onBeatFlyers();
-    for (let i = 0; i < 2 + ((rnd() * 5) | 0); i++) {
-      const w = pick(wedges);
-      if (!w) break;
-      w.kick = rr(0.4, 1);
-      if (rnd() < 0.5) w.prof = makeProfile(w.n);
+
+    // Ambient decoration. Once real data arrives (params.dataDriven) these stop,
+    // so everything you see on the ring is a response, not decoration.
+    if (!params.dataDriven) {
+      onBeatFlyers();
+      for (let i = 0; i < 2 + ((rnd() * 5) | 0); i++) {
+        const w = pick(wedges);
+        if (!w) break;
+        w.kick = rr(0.4, 1);
+        if (rnd() < 0.5) w.prof = makeProfile(w.n);
+      }
+      for (let i = 0; i < 2; i++) {
+        const w = pick(wedges);
+        if (w) w.lum = rnd() < 0.4 ? rr(0.8, 1) : rr(0.25, 0.6);
+      }
+      const nf = Math.round((1 + ((rnd() * 4) | 0)) * params.flareRate);
+      for (let i = 0; i < nf; i++) spawnFlare(hazes.length && rnd() < 0.6 ? pick(hazes).a : null);
     }
-    for (let i = 0; i < 2; i++) {
-      const w = pick(wedges);
-      if (w) w.lum = rnd() < 0.4 ? rr(0.8, 1) : rr(0.25, 0.6);
-    }
+
+    // Haze is atmosphere — it stays regardless of the data source.
     const nh = n % 4 === 0 ? 5 + ((rnd() * 4) | 0) : 1 + ((rnd() * 3) | 0);
     for (let i = 0; i < Math.round((nh * params.hazeCount) / 8); i++) spawnHaze(false);
-    const nf = Math.round((1 + ((rnd() * 4) | 0)) * params.flareRate);
-    for (let i = 0; i < nf; i++) spawnFlare(hazes.length && rnd() < 0.6 ? pick(hazes).a : null);
 
+    // The travelling wave is the visual beat: it still shapes strand lengths.
     const dir = rnd() < 0.5 ? 1 : -1;
     const big = n % 8 === 0;
     pulses.push({
@@ -455,6 +498,29 @@ export function createOuterLayer({ random, params }) {
     }
     ctx.globalAlpha = 1;
 
+    // data-driven beams: one per impulse, roots pinned to the ring
+    for (const b of eventBeams) {
+      const t = b.age / b.life;
+      const grow = t < 0.22 ? t / 0.22 : 1;
+      const fade = t > 0.55 ? Math.max(0, 1 - (t - 0.55) / 0.45) : 1;
+      const L = span() * (0.12 + 0.8 * b.power) * grow;
+      const w = 0.01 + 0.028 * b.power;
+      ctx.strokeStyle = b.tint ? GR.s1 : GR.s0;
+      radialLines(ctx, b.a + ringRot - w / 2, b.a + ringRot + w / 2, 0.0038 * 0.5, rStart, L, b.seed, 0.55);
+      ctx.globalAlpha = Math.min(1, fade * (0.3 + 0.55 * b.power));
+      ctx.lineWidth = 1.7;
+      ctx.stroke();
+      ctx.globalAlpha = Math.min(1, fade * 0.16);
+      ctx.lineWidth = 5.5;
+      ctx.stroke();
+      const ca = Math.cos(b.a + ringRot);
+      const sa = Math.sin(b.a + ringRot);
+      ctx.globalAlpha = fade;
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(view.cx + ca * (rStart + L) - 1, view.cy + sa * (rStart + L) - 1, 2, 2);
+    }
+    ctx.globalAlpha = 1;
+
     drawFlyers(ctx, true);
 
     ctx.strokeStyle = GR.s0;
@@ -524,6 +590,7 @@ export function createOuterLayer({ random, params }) {
     build,
     update,
     onBeat,
+    impulse,
     draw,
     get farCanvas() { return farC; },
     get layerCount() { return strandLayers.length; },

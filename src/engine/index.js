@@ -186,12 +186,29 @@ export function createHaloflux(canvas, options = {}) {
 
   /**
    * Discrete event from the data link (tool_call / tool_result / compaction…).
-   * Slice 1 only records it; later slices map it onto comets, kicks and flashes.
+   *
+   * When `slot` is given, the event is anchored to that ring panel: the beam
+   * fires from the panel's current screen angle and the panel flashes. Once any
+   * real event flows in, the ambient random beams stop (`dataDriven`).
    */
   function pushImpulse(impulse) {
     if (!impulse) return;
     impulses.push(impulse);
     if (impulses.length > 512) impulses.splice(0, impulses.length - 512);
+
+    const power = Math.max(0, Math.min(1, Number(impulse.power) || 0.7));
+    const tint = impulse.kind === 'tool_result' ? 1 : 0;
+
+    if (Number.isFinite(impulse.slot)) {
+      const angle = ring.slotAngle(impulse.slot);
+      ring.flashSlotAt(angle);
+      outer.impulse(angle, power, tint);
+    } else {
+      const angle = (random.rnd() * 2 - 1) * thS;
+      outer.impulse(angle, power, tint);
+    }
+    // real data takes over: ambient decoration stops
+    if (C.dataDriven !== 1) C.dataDriven = 1;
   }
 
   /** Continuous state snapshot (context pressure / agent roster). */
@@ -212,6 +229,7 @@ export function createHaloflux(canvas, options = {}) {
       quality: Q.name,
       ported: PORTED.slice(),
       activity: { mode: activity.mode, level: activity.level },
+      slots: ring.slotCount,
       impulses: impulses.length,
       tick: lastTick
     };

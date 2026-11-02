@@ -499,8 +499,17 @@ export function createRingLayer({ random, params }) {
     ctx.restore();
   }
 
+  /** Screen angle of slot i, including the band's current rotation. */
+  function slotAngle(i) {
+    if (!slots.length) return 0;
+    const n = slots.length;
+    const s = slots[((i % n) + n) % n];
+    return s.a + ringRot;
+  }
+
   return {
     build,
+    slotAngle,
     onBeat,
     update,
     draw,
