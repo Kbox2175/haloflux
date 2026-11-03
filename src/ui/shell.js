@@ -273,6 +273,31 @@ export function createShell(opts) {
       else shell.requestFullscreen().catch(() => {});
     }
   }
+  // Full-screen geometry freeze (preview-only). When the viewport grows to fill
+  // the screen we lock the ring's reference size to its last window size, so the
+  // canvas stretches without re-running the expensive web/ring builds — the ring
+  // keeps its exact on-screen size while the beams extend to fill the extra
+  // space. Exiting restores the live reference.
+  let winW = 0, winH = 0;
+  function trackWindowSize() {
+    if (document.fullscreenElement) return; // full-screen: keep the last window size
+    const r = shell.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) { winW = Math.round(r.width); winH = Math.round(r.height); }
+  }
+  function onFullscreenChange() {
+    if (!engine.setGeometryRef) return;
+    if (document.fullscreenElement === shell) {
+      // freeze at the last measured window size (the shell is already full-screen
+      // by the time this fires, so the live rect is the screen, not the window)
+      if (!winW) trackWindowSize();
+      engine.setGeometryRef(true, winW, winH);
+    } else {
+      engine.setGeometryRef(false);
+    }
+  }
+  document.addEventListener('fullscreenchange', onFullscreenChange);
+  trackWindowSize();
+
   document.addEventListener('keydown', onKey);
 
   let raf = 0;
@@ -287,6 +312,7 @@ export function createShell(opts) {
   const ro = new ResizeObserver(() => {
     clearTimeout(rzT);
     rzT = setTimeout(() => {
+      trackWindowSize(); // refresh the window size used when freezing geometry
       for (const { created } of creators) {
         try { created.resize && created.resize(); } catch { /* ignore */ }
       }
@@ -304,6 +330,7 @@ export function createShell(opts) {
     dispose() {
       cancelAnimationFrame(raf);
       document.removeEventListener('keydown', onKey);
+      document.removeEventListener('fullscreenchange', onFullscreenChange);
       ro.disconnect();
       clearTimeout(rzT);
       for (const { created } of creators) {

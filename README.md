@@ -34,6 +34,7 @@ A full-screen, beat-driven sci-fi data visualization — a woven light-field cor
 - [x] Panels overlay the stage instead of taking grid rows — the canvas is always full-viewport, so the ring keeps the same geometry whether the panels are open or closed. The panels are opaque DOM overlays above the canvas, so the ring simply renders underneath their band (no canvas clipping — an earlier clip(panel-band) was reversed and erased the ring centre)
 - [x] ResizeObserver now watches the canvas itself (it used to watch the parent captured at creation, which missed the move into the stage and caused the stretched ring)
 - [x] `resize()` short-circuits when width/height/dpr are unchanged, so full-screen transitions and ResizeObserver storms no longer rebuild the web (2600 curves), the ring panels and the outer strands on every tick
+- [x] Full-screen geometry freeze (preview): entering full-screen locks the ring's reference size to the last window size, so the canvas stretches and the beams extend (`RMAX` follows the live viewport) without re-running the web/ring builds — the ring keeps its exact on-screen size. `ring.build` now skips when R/RO are unchanged. The wallpaper build keeps ref == live (it never leaves full-screen)
 - [ ] Comets (grouped light bundles) and the remaining event mappings
 - [ ] Per-agent views and the mini console
 - [ ] Tauri unlock overlay and opening animation

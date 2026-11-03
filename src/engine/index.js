@@ -80,11 +80,15 @@ export function createHaloflux(canvas, options = {}) {
   let lastTick = null;
   let ro = null;
 
-  /**
-   * Optional clip rectangle (CSS px) that the shell uses to keep a panel band
-   * from eating the ring. Drawing inside it is skipped — the panels overlay it,
-   * so nothing is lost and the ring reads as wrapping around them.
-   */
+  // Geometry reference size (CSS px). In preview the canvas can outgrow the
+  // geometry when the window goes full-screen; the ring stays locked to the
+  // last window-sized reference and only the beams (RMAX, fed the live W/H)
+  // stretch to fill the extra space. Full-screen ticks then skip the
+  // expensive web/ring/outer rebuild entirely. The wallpaper build (A-2)
+  // always keeps ref == live, since it never leaves full-screen.
+  let refW = 0, refH = 0;
+  let refFrozen = false;
+
   /**
    * Traffic per ring panel, in "data volume" units. The rotation rule reads
    * this to decide which panel to aim at the horizontal axis.
@@ -121,22 +125,33 @@ export function createHaloflux(canvas, options = {}) {
     // Full-screen transitions and stray ResizeObserver ticks fire many times
     // for the same geometry; rebuilding the web (2600 curves), the ring panels
     // and the outer strands on every one is the 1–2 s stutter. Short-circuit
-    // unless the backing size actually changed.
-    if (W === nextW && H === nextH && Math.abs(dpr - nextDpr) < 0.001) return;
+    // unless the backing size or the geometry reference actually changed.
+    const nextRefW = refFrozen ? refW : nextW;
+    const nextRefH = refFrozen ? refH : nextH;
+    if (W === nextW && H === nextH && dpr === nextDpr &&
+        refW === nextRefW && refH === nextRefH) return;
 
+    // The geometry reference: the live viewport, unless it is frozen (full-screen).
+    refW = nextRefW;
+    refH = nextRefH;
     W = nextW;
     H = nextH;
     dpr = nextDpr;
     canvas.width = Math.max(1, Math.round(W * dpr));
     canvas.height = Math.max(1, Math.round(H * dpr));
-    cx = W * 0.07;
-    cy = H * 0.5;
-    R = Math.max(H * 0.78, W * 0.3);
-    RO = R + Math.max(90, Math.min(240, H * 0.3, W * 0.13)) * C.ringWidth;
-    thV = Math.asin(Math.min(1, (H / 2 + 60) / R));
-    thS = Math.asin(Math.min(1, (H / 2 + 40) / RO));
+
+    // Geometry is derived from the (possibly frozen) reference size so the ring
+    // keeps its exact on-screen size and position while full-screen; only RMAX
+    // follows the live canvas, which lets the beams stretch to fill the extra
+    // space without re-running the web/ring builds.
+    cx = refW * 0.07;
+    cy = refH * 0.5;
+    R = Math.max(refH * 0.78, refW * 0.3);
+    RO = R + Math.max(90, Math.min(240, refH * 0.3, refW * 0.13)) * C.ringWidth;
+    thV = Math.asin(Math.min(1, (refH / 2 + 60) / R));
+    thS = Math.asin(Math.min(1, (refH / 2 + 40) / RO));
     RMAX = Math.hypot(W - cx, H / 2) + 60;
-    web.build(W, H, R, dpr);
+    web.build(refW, refH, R, dpr);
     ring.build(R, RO);
     syncTraffic();
     syncChannels();
@@ -329,6 +344,33 @@ export function createHaloflux(canvas, options = {}) {
     activity.setMode(mode);
   }
 
+  /**
+   * Preview-only geometry freeze (A-1). Freezing locks the ring's reference
+   * size to the given window dimensions so a full-screen viewport grows the
+   * canvas (and stretches the beams via RMAX) without re-running the expensive
+   * web/ring builds — the ring keeps its exact on-screen size. Clear the freeze
+   * on exit so the geometry tracks the window again.
+   *
+   * The wallpaper build (A-2) never calls this: it stays full-screen and
+   * always keeps ref == live.
+   *
+   * @param {boolean} frozen
+   * @param {number} [w]  window width to freeze (default keeps current ref)
+   * @param {number} [h]  window height to freeze
+   */
+  function setGeometryRef(frozen, w, h) {
+    if (frozen) {
+      refFrozen = true;
+      if (w > 0) refW = Math.round(w);
+      if (h > 0) refH = Math.round(h);
+    } else {
+      refFrozen = false;
+    }
+    // re-measure: in full-screen the canvas is bigger and the geometry must be
+    // re-derived from the frozen reference (RMAX uses the live W/H)
+    resize();
+  }
+
   function getState() {
     return {
       W, H, cx, cy, R, RO, dpr,
@@ -382,6 +424,7 @@ export function createHaloflux(canvas, options = {}) {
     pushImpulse,
     pushTick,
     setMode,
+    setGeometryRef,
     detectTraffic,
     get traffic() { return traffic.slice(); },
     get link() { return link; },

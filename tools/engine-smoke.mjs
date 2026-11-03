@@ -205,5 +205,46 @@ simSource.dispose();
 halo.destroy();
 check('destroy() is idempotent', (() => { halo.destroy(); return true; })());
 
+// ---- full-screen geometry freeze (A-1) ----
+// The ring must keep its exact on-screen size when the canvas grows to fill the
+// screen; only RMAX (beams) follows the live canvas.
+let fsW = 1272, fsH = 668;
+const fsCanvas = {
+  tagName: 'CANVAS', width: 0, height: 0, __ctx: null,
+  getContext: (t) => {
+    if (t !== '2d') throw new Error('ctx ' + t);
+    if (!fsCanvas.__ctx) { fsCanvas.__ctx = makeCtx('fscanvas'); fsCanvas.__ctx.canvas = fsCanvas; }
+    return fsCanvas.__ctx;
+  },
+  getBoundingClientRect: () => ({ width: fsW, height: fsH, left: 0, top: 0 })
+};
+const fsHalo = createHaloflux(fsCanvas, { seed: 9, autoStart: false, hud: true });
+const baseR = fsHalo.getState().R;
+const baseCx = fsHalo.getState().cx;
+const baseCy = fsHalo.getState().cy;
+const baseW = fsHalo.getState().W;
+
+// window -> full-screen: freeze the reference at the window size, then grow
+fsHalo.setGeometryRef(true, 1272, 668);
+fsW = 2560; fsH = 1400;
+fsHalo.resize();
+const fsState = fsHalo.getState();
+check('freeze keeps ring size', Math.abs(fsState.R - baseR) < 0.5, `R ${baseR} -> ${fsState.R}`);
+check('freeze keeps ring centre', Math.abs(fsState.cx - baseCx) < 0.5 && Math.abs(fsState.cy - baseCy) < 0.5,
+  `cx ${baseCx}->${fsState.cx} cy ${baseCy}->${fsState.cy}`);
+check('freeze grows the canvas backing', fsCanvas.width > Math.round(baseW * fsHalo.getState().dpr) || fsState.W > baseW,
+  `W ${baseW} -> ${fsState.W} backing ${fsCanvas.width}`);
+check('freeze keeps geometry ref', fsState.W > baseW && Math.abs(fsState.R - baseR) < 0.5,
+  `W=${fsState.W} R=${fsState.R}`);
+
+// exit full-screen: geometry tracks the window again
+fsHalo.setGeometryRef(false);
+fsW = 1272; fsH = 668;
+fsHalo.resize();
+const exState = fsHalo.getState();
+check('unfreeze restores ring size', Math.abs(exState.R - baseR) < 0.5, `R ${exState.R}`);
+check('unfreeze restores canvas width', exState.W === baseW, `W ${exState.W}`);
+fsHalo.destroy();
+
 console.log(`\n${failures === 0 ? 'ALL PASS' : failures + ' FAILURES'}`);
 process.exit(failures === 0 ? 0 : 1);

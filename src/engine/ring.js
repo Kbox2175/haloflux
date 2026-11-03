@@ -332,8 +332,15 @@ export function createRingLayer({ random, params }) {
   }
 
   /** Lay out slots around the band; called whenever R/RO change. */
+  let builtR = 0, builtRO = 0;
   function build(R, RO) {
     band = RO - R;
+    // The ring is derived only from R/RO. In full-screen the reference is
+    // frozen, so R/RO stay identical across resize ticks — skip the rebuild of
+    // every slot panel instead of tearing them down and re-rendering.
+    if (slots.length && Math.abs(builtR - R) < 0.5 && Math.abs(builtRO - RO) < 0.5) return;
+    builtR = R;
+    builtRO = RO;
     if (slots.length) for (const s of slots) if (s.c) releaseCanvas(s.c);
     slots = [];
     const mid = R + band * 0.42;
