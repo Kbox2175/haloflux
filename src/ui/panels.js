@@ -62,69 +62,100 @@ export function createFeedPanel(host) {
   };
 }
 
-/* ---------------- 2. 平流 / 粒子求解器 ---------------- */
+/* ---------------- 2. 上下文·速度 ----------------
+ * The third v0.4 telemetry panel (§4.2 #3). A DOM slope meter for how fast the
+ * context window is filling: a big tokens/second readout, a projected time to
+ * full, and a short slope line of the recent growth rate (its steepness *is*
+ * the rate). Replaces the old tps-driven flow canvas — the speed placeholder.
+ * Reads contextTokens / contextLimit / step from the link snapshot.
+ */
 
-export function createAdvectionPanel(host) {
-  const seed = [];
-  let running = false;
-  let raf = 0;
-  let t = 0;
+const SPD_WINDOW = 2.0; // seconds; rolling window for the rate
 
-  function init(w, h) {
-    const n = Math.round((w * h) / 900);
-    seed.length = 0;
-    for (let i = 0; i < n; i++) {
-      seed.push({ x: Math.random() * w, y: Math.random() * h, l: 0.5 + Math.random() * 3 });
-    }
+/** Rate formatter: 8000 → "8K", 2400 → "2.4K", 80 → "80". */
+function fmtRate(n) {
+  const v = Math.max(0, n || 0);
+  if (v >= 1000) return (v / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+  return String(Math.round(v));
+}
+
+export function createContextSpeedPanel(host) {
+  const box = host.querySelector('.spd');
+  const MAX_SAMPLES = 120;
+  const samples = []; // { t, tokens }
+  let clock = 0;       // panel-local seconds (accumulated dt)
+
+  function build() {
+    box.innerHTML =
+      '<div class="spd-top">' +
+      '<div class="spd-big"><b class="spd-rate">0</b><span class="spd-unit">tok/s</span></div>' +
+      '<div class="spd-side"><span class="spd-eta">预计 —</span><span class="spd-step">步 0</span></div>' +
+      '</div>' +
+      '<svg class="spd-slope" viewBox="0 0 100 28" preserveAspectRatio="none">' +
+      '<path class="spd-area" d=""></path>' +
+      '<polyline class="spd-line" points=""></polyline>' +
+      '</svg>' +
+      '<div class="spd-cap">最近 2s · 增长速率</div>';
   }
 
-  function frame(ctx, w, h) {
-    t += 0.016;
-    ctx.fillStyle = 'rgba(14,15,18,0.22)';
-    ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = 'rgba(120,125,135,.25)';
-    for (let i = 6; i < w; i += 12) for (let j = 6; j < h; j += 12) ctx.fillRect(i, j, 1, 1);
-
-    ctx.strokeStyle = 'rgba(235,238,244,.7)';
-    ctx.lineWidth = 0.8;
-    ctx.beginPath();
-    for (const p of seed) {
-      const a = Math.sin(p.x * 0.035 + t * 0.6) * Math.cos(p.y * 0.05 - t * 0.4) * Math.PI + Math.sin((p.x + p.y) * 0.01 + t * 0.2);
-      const nx = p.x + Math.cos(a) * 22 * 0.016;
-      const ny = p.y + Math.sin(a) * 22 * 0.016;
-      ctx.moveTo(p.x, p.y);
-      ctx.lineTo(nx + Math.cos(a) * 2, ny + Math.sin(a) * 2);
-      p.x = nx;
-      p.y = ny;
-      p.l -= 0.016;
-      if (p.l < 0 || p.x < 0 || p.x > w || p.y < 0 || p.y > h) {
-        p.x = Math.random() * w;
-        p.y = Math.random() * h;
-        p.l = 0.5 + Math.random() * 3;
-      }
-    }
-    ctx.stroke();
+  function renderSlope(color, rates) {
+    const line = box.querySelector('.spd-line');
+    const area = box.querySelector('.spd-area');
+    const n = rates.length;
+    if (n < 2) { line.setAttribute('points', ''); area.setAttribute('d', ''); return; }
+    let min = Math.min(...rates), max = Math.max(...rates);
+    if (max - min < 1) { min -= 1; max += 1; }
+    const pts = rates.map((v, i) =>
+      `${((i / (n - 1)) * 100).toFixed(2)},${(26 - ((v - min) / (max - min)) * 24).toFixed(2)}`);
+    line.setAttribute('points', pts.join(' '));
+    line.style.stroke = color;
+    area.setAttribute('d', 'M0,28 L' + pts.join(' L') + ' L100,28 Z');
+    area.style.fill = color;
   }
+
+  build();
 
   return {
-    update(s) {
-      const cv = host.querySelector('canvas');
-      if (!cv) return;
-      if (!running) {
-        running = true;
-        const tick = () => {
-          const c = canvasFor(host);
-          if (c) frame(c.ctx, c.w, c.h);
-          if (running) raf = requestAnimationFrame(tick);
-        };
-        tick();
+    update(s, dt) {
+      if (!box) return;
+      const link = s && s.link;
+      const d = Number.isFinite(dt) && dt > 0 ? dt : 0.016;
+      clock += d;
+
+      const tokens = link ? (link.contextTokens || 0) : 0;
+      const limit = link ? (link.contextLimit || 0) : 0;
+      const step = link ? (link.step || 0) : 0;
+      const running = link ? !!link.running : false;
+
+      samples.push({ t: clock, tokens });
+      while (samples.length > MAX_SAMPLES) samples.shift();
+      while (samples.length > 2 && clock - samples[0].t > SPD_WINDOW) samples.shift();
+
+      // rolling growth rate (tokens/sec) at each sample, lookback k
+      const n = samples.length;
+      const k = Math.max(2, Math.floor(n / 10));
+      const rates = [];
+      for (let i = k; i < n; i++) {
+        const span = samples[i].t - samples[i - k].t;
+        if (span > 0.05) rates.push((samples[i].tokens - samples[i - k].tokens) / span);
       }
+      const rate = rates.length ? rates[rates.length - 1] : 0;
+      const rateK = Math.max(0, rate);
+
+      const big = box.querySelector('.spd-rate');
+      const color = rateK >= 1000 ? '#f0a6c6' : (running ? '#98e0cf' : '#6b6f78');
+      big.textContent = fmtRate(rateK);
+      big.style.color = color;
+
+      box.querySelector('.spd-eta').textContent = rateK > 1
+        ? (tokens >= limit ? '已满' : '预计 +' + Math.ceil((limit - tokens) / rateK) + 's')
+        : '—';
+      box.querySelector('.spd-step').textContent = '步 ' + step;
+
+      renderSlope(color, rates);
     },
-    resize() {
-      const c = canvasFor(host);
-      if (c) init(c.w, c.h);
-    },
-    dispose() { running = false; cancelAnimationFrame(raf); }
+    resize() {},
+    dispose() {}
   };
 }
 
@@ -590,7 +621,7 @@ export function createIndexPanel(host) {
 /** Panel registry: key → { title, cap, create }. */
 export const PANELS = [
   { key: 'feed', title: '调查流', cap: '实时事件', create: createFeedPanel },
-  { key: 'adv', title: '平流 / 粒子求解器', cap: '流速 ∝ 生成速率', create: createAdvectionPanel },
+  { key: 'spd', title: '上下文·速度', cap: '增长速率 · 预计满载', create: createContextSpeedPanel },
   { key: 'code', title: '方法工作区', cap: '轮次推进', create: createWorkspacePanel },
   { key: 'ctx', title: '上下文·压力', cap: '占用水位 · 距压缩', create: createContextPressurePanel },
   { key: 'routes', title: '来源 / 提取路由', cap: '通道 → 可运行源码', create: createRoutesPanel },

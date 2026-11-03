@@ -129,6 +129,18 @@ const STYLE = `
 .ctx-line{fill:none;stroke:#98e0cf;stroke-width:1.4;vector-effect:non-scaling-stroke}
 .ctx-area{stroke:none}
 
+/* ---- 2. 上下文·速度 (DOM, v0.4) ---- */
+.spd{flex:1;min-height:0;display:flex;flex-direction:column;gap:3px;font-size:8px;color:#cfd2d8;overflow:hidden}
+.spd-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.spd-big{display:flex;align-items:baseline;gap:3px}
+.spd-rate{font-size:17px;font-weight:800;color:#f4f5f7;font-variant-numeric:tabular-nums;letter-spacing:-.5px}
+.spd-unit{font-size:8px;color:#6b6f78}
+.spd-side{display:flex;flex-direction:column;align-items:flex-end;gap:1px;font-size:7px;color:#6b6f78;font-variant-numeric:tabular-nums;white-space:nowrap}
+.spd-slope{width:100%;height:28px;flex:none;display:block;opacity:.9}
+.spd-line{fill:none;stroke:#98e0cf;stroke-width:1.4;vector-effect:non-scaling-stroke}
+.spd-area{stroke:none}
+.spd-cap{font-size:6.5px;color:#6b6f78;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
 @media (max-width:1000px){
   html,body{overflow:auto} .halo-shell{height:auto}
   .halo-stage{height:62vh}
@@ -222,12 +234,14 @@ export function createShell(opts) {
 
     // canvas panels render into their own canvas; the rest need a container
     // with the class their renderer looks for.
-    if (def.key === 'adv' || def.key === 'idx') {
+    if (def.key === 'idx') {
       body.appendChild(document.createElement('canvas'));
     } else if (def.key === 'feed') {
       body.className = 'feed';
     } else if (def.key === 'code') {
       body.className = 'code';
+    } else if (def.key === 'spd') {
+      body.className = 'spd';
     } else if (def.key === 'ctx') {
       body.className = 'ctx';
     } else if (def.key === 'routes') {

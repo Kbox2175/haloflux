@@ -161,7 +161,7 @@ const sample = {
 };
 
 const created = [];
-const CANVAS_PANELS = new Set(['adv', 'idx']);
+const CANVAS_PANELS = new Set(['idx']);
 for (const def of PANELS) {
   const host = new FakeEl('div');
   const body = new FakeEl('div');
@@ -231,6 +231,33 @@ if (ctxEntry) {
     line ? line.getAttribute('points') : '');
 } else {
   check('ctx panel present', false);
+}
+
+// ---- context-speed panel (DOM) content ----
+const spdEntry = created.find((c) => c.key === 'spd');
+if (spdEntry) {
+  const sb = spdEntry.body;
+  const sp = spdEntry.p;
+  const rate = sb.querySelector('.spd-rate');
+  const eta = sb.querySelector('.spd-eta');
+  const stepEl = sb.querySelector('.spd-step');
+
+  // the seeded loop ran twice on a constant snapshot → no growth
+  check('spd: idle rate is zero', rate.textContent === '0', rate.textContent);
+  check('spd: idle eta is a dash', eta.textContent === '—', eta.textContent);
+
+  // a filling window (4 × 2000 tokens over 4 × 0.25s) → 8000 tok/s
+  for (let i = 1; i <= 4; i++) {
+    sp.update({ ...sample, link: { ...sample.link, contextTokens: 24000 + i * 2000, step: 7 + i } }, 0.25);
+  }
+  check('spd: growth rate is computed', rate.textContent === '8K', rate.textContent);
+  check('spd: eta projects the fill', eta.textContent === '预计 +5s', eta.textContent);
+  check('spd: step counter shown', stepEl.textContent === '步 11', stepEl.textContent);
+  const slope = sb.querySelector('.spd-line');
+  check('spd: slope line sampled', !!slope && (slope.getAttribute('points') || '').split(' ').length >= 2,
+    slope ? slope.getAttribute('points') : '');
+} else {
+  check('spd panel present', false);
 }
 
 for (const { p, def } of created) {
