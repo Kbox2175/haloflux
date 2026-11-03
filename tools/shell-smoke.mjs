@@ -260,6 +260,32 @@ if (spdEntry) {
   check('spd panel present', false);
 }
 
+// ---- compaction-timeline panel (DOM) content ----
+const tlEntry = created.find((c) => c.key === 'tl');
+if (tlEntry) {
+  const tb = tlEntry.body;
+  const tp = tlEntry.p;
+  const count = tb.querySelector('.tl-count');
+  const stepEl = tb.querySelector('.tl-step');
+  const lastEl = tb.querySelector('.tl-last');
+
+  check('tl: starts with no compaction', count.textContent === '0', count.textContent);
+
+  // rise, then a drop past the 2% threshold → one compaction event
+  tp.update({ ...sample, link: { ...sample.link, contextTokens: 30000, step: 10 } }, 0.5);
+  tp.update({ ...sample, link: { ...sample.link, contextTokens: 30000, step: 10 } }, 0.5);
+  tp.update({ ...sample, link: { ...sample.link, contextTokens: 20000, step: 11 } }, 0.5);
+  check('tl: drop counts as a compaction', count.textContent === '1', count.textContent);
+  check('tl: last event step shown', lastEl.textContent === '最近 步 11', lastEl.textContent);
+  const marks = tb.querySelector('.tl-marks');
+  check('tl: event marker drawn', !!marks && /<circle/.test(marks.innerHTML || ''), 'no marker');
+  const line = tb.querySelector('.tl-line');
+  check('tl: sawtooth line sampled', !!line && (line.getAttribute('points') || '').split(' ').length >= 2,
+    line ? line.getAttribute('points') : '');
+} else {
+  check('tl panel present', false);
+}
+
 for (const { p, def } of created) {
   try { if (p.resize) p.resize(); p.dispose(); } catch (e) {
     check(`panel ${def.key} dispose`, false, e.message);

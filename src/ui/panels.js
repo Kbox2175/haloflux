@@ -40,7 +40,7 @@ export function createFeedPanel(host) {
   function push(kind, text) {
     const d = document.createElement('div');
     d.innerHTML = `<span class="n">${String(++n).padStart(3, '0')}</span>` +
-      `<span class="vb ${kind}">${kind === 'error' ? '错误' : kind === 'turn' ? '轮次' : kind === 'tool' ? '工具' : kind === 'user' ? '输入' : kind === 'assistant' ? '回答' : '状态'}</span>${text}`;
+      `<span class="vb ${kind}">${kind === 'error' ? '错误' : kind === 'turn' ? '轮次' : kind === 'tool' ? '工具' : kind === 'user' ? '输入' : kind === 'assistant' ? '回答' : kind === 'compaction' ? '压缩' : '状态'}</span>${text}`;
     box.appendChild(d);
     while (box.children.length > MAX) box.removeChild(box.firstChild);
   }
@@ -159,59 +159,110 @@ export function createContextSpeedPanel(host) {
   };
 }
 
-/* ---------------- 3. 方法工作区 ---------------- */
+/* ---------------- 3. 压缩·时间线 ----------------
+ * The fourth v0.4 telemetry panel (§4.2 #4). A DOM sawtooth meter for
+ * compaction / truncation: a rolling context-level area chart whose drops are
+ * the events, each marked with a pink tick, plus a compaction count and the
+ * last event's step. The link snapshot carries no explicit compaction flag, so
+ * the panel computes it from a contextTokens drop (>2% of the window) — which
+ * is how a live session reports it. Replaces the old method-workspace canvas.
+ */
 
-const CODE_LINES = [
-  ['load_context', '()'], ['extract_context', '(messages)'], ['prepare_scene', '()'],
-  ['step_forward', '(scene, dt)'], ['check_stability', '(state)'], ['check_mass', '(state)'],
-  ['compare_reference', '(state)'], ['attach_source_refs', '(scene)'],
-  ['retain_missing', '()'], ['package_checkout', '()']
-];
+const TL_WINDOW = 20;  // seconds of history kept
+const TL_MAX = 120;    // sample cap
+const TL_DROP = 0.02;  // a drop beyond 2% of the window is a compaction
+const TL_MAX_EVENTS = 40;
 
-export function createWorkspacePanel(host) {
-  const box = host.querySelector('.code');
-  const MAX = 12;
-  const lines = [];
-  let idx = 0;
-  let char = 0;
-  let tick = 0;
+export function createCompactionTimelinePanel(host) {
+  const box = host.querySelector('.tl');
+  const samples = []; // { t, tokens, step }
+  const events = [];  // { t, step, from, to }
+  let clock = 0;
+  let lastTokens = null;
 
-  function ensure() {
-    while (lines.length < MAX) lines.push({ name: null, shown: 0 });
+  function build() {
+    box.innerHTML =
+      '<div class="tl-top">' +
+      '<div class="tl-big"><b class="tl-count">0</b><span class="tl-unit">次压缩</span></div>' +
+      '<div class="tl-side"><span class="tl-step">步 0</span><span class="tl-last">最近 —</span></div>' +
+      '</div>' +
+      '<svg class="tl-chart" viewBox="0 0 100 30" preserveAspectRatio="none">' +
+      '<path class="tl-area" d=""></path>' +
+      '<polyline class="tl-line" points=""></polyline>' +
+      '<g class="tl-marks"></g>' +
+      '</svg>' +
+      '<div class="tl-cap">上下文随步演进 · 跌落即压缩</div>';
   }
 
-  function step() {
-    tick++;
-    if (tick % 6 !== 0) return;
-    const cur = lines[idx];
-    if (!cur) return;
-    if (cur.name === null) cur.name = CODE_LINES[idx % CODE_LINES.length];
-    if (cur.shown < cur.name[0].length + cur.name[1].length + 2) {
-      cur.shown += 2;
-    } else {
-      cur.name = null;
-      cur.shown = 0;
-      idx = (idx + 1) % MAX;
+  function renderChart() {
+    const line = box.querySelector('.tl-line');
+    const area = box.querySelector('.tl-area');
+    const marks = box.querySelector('.tl-marks');
+    const n = samples.length;
+    if (n < 2) {
+      line.setAttribute('points', '');
+      area.setAttribute('d', '');
+      marks.innerHTML = '';
+      return;
     }
+    const vals = samples.map((s) => s.tokens);
+    let min = Math.min(...vals), max = Math.max(...vals);
+    if (max - min < 1) { min -= 1; max += 1; }
+    const pts = [], ys = [];
+    for (let i = 0; i < n; i++) {
+      const y = 26 - ((samples[i].tokens - min) / (max - min)) * 24;
+      pts.push(`${((i / (n - 1)) * 100).toFixed(2)},${y.toFixed(2)}`);
+      ys.push(y);
+    }
+    line.setAttribute('points', pts.join(' '));
+    area.setAttribute('d', 'M0,30 L' + pts.join(' L') + ' L100,30 Z');
+
+    // event markers: a pink tick at each drop, placed on the curve
+    const t0 = samples[0].t, t1 = samples[n - 1].t;
+    const span = Math.max(0.001, t1 - t0);
+    marks.innerHTML = events.map((e) => {
+      const x = Math.max(0, Math.min(100, ((e.t - t0) / span) * 100));
+      let y = 26;
+      for (let i = 0; i < n; i++) { if (samples[i].t >= e.t - 1e-9) { y = ys[i]; break; } }
+      return `<line x1="${x.toFixed(2)}" y1="${(y - 3).toFixed(2)}" x2="${x.toFixed(2)}" y2="${(y + 3).toFixed(2)}" />` +
+        `<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="1.1" />`;
+    }).join('');
   }
 
-  function render() {
-    ensure();
-    let html = '';
-    for (let i = Math.max(0, idx - MAX + 1); i < lines.length; i++) {
-      const l = lines[i];
-      if (!l.name) continue;
-      const shown = Math.min(l.shown, l.name[0].length + l.name[1].length + 2);
-      const a = l.name[0].slice(0, Math.max(0, shown - l.name[1].length - 2));
-      const b = l.name[1].slice(0, Math.max(0, shown - a.length));
-      html += `<div><span class="ln">${String(i + 1).padStart(3, '0')}</span>` +
-        `<span class="op">${a}</span><span class="fn">${b}</span></div>`;
-    }
-    box.innerHTML = html;
-  }
+  build();
 
   return {
-    update() { step(); render(); },
+    update(s, dt) {
+      if (!box) return;
+      const link = s && s.link;
+      const d = Number.isFinite(dt) && dt > 0 ? dt : 0.016;
+      clock += d;
+
+      const tokens = link ? (link.contextTokens || 0) : 0;
+      const limit = link ? (link.contextLimit || 0) : 0;
+      const step = link ? (link.step || 0) : 0;
+
+      // sample only when the level moves (the link ticks ~4×/s, not 60)
+      if (lastTokens === null || tokens !== lastTokens) {
+        const prev = samples.length ? samples[samples.length - 1] : null;
+        if (prev && tokens < prev.tokens - Math.max(1, limit * TL_DROP)) {
+          events.push({ t: clock, step, from: prev.tokens, to: tokens });
+          if (events.length > TL_MAX_EVENTS) events.shift();
+        }
+        samples.push({ t: clock, tokens, step });
+        lastTokens = tokens;
+        while (samples.length > TL_MAX) samples.shift();
+        while (samples.length > 2 && clock - samples[0].t > TL_WINDOW) samples.shift();
+      }
+
+      box.querySelector('.tl-count').textContent = String(events.length);
+      box.querySelector('.tl-step').textContent = '步 ' + step;
+      const last = events.length ? events[events.length - 1] : null;
+      box.querySelector('.tl-last').textContent = last ? '最近 步 ' + last.step : '最近 —';
+
+      renderChart();
+    },
+    resize() {},
     dispose() {}
   };
 }
@@ -622,7 +673,7 @@ export function createIndexPanel(host) {
 export const PANELS = [
   { key: 'feed', title: '调查流', cap: '实时事件', create: createFeedPanel },
   { key: 'spd', title: '上下文·速度', cap: '增长速率 · 预计满载', create: createContextSpeedPanel },
-  { key: 'code', title: '方法工作区', cap: '轮次推进', create: createWorkspacePanel },
+  { key: 'tl', title: '压缩·时间线', cap: '上下文随步演进', create: createCompactionTimelinePanel },
   { key: 'ctx', title: '上下文·压力', cap: '占用水位 · 距压缩', create: createContextPressurePanel },
   { key: 'routes', title: '来源 / 提取路由', cap: '通道 → 可运行源码', create: createRoutesPanel },
   { key: 'tools', title: '工具·健康', cap: '命令 · 缓存 · 工具', create: createToolHealthPanel },

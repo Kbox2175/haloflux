@@ -112,6 +112,14 @@ export function createSimulatedSource(options = {}) {
       state.turn++;
       state.step = 0;
       state.contextTokens = Math.min(state.contextLimit - 4000, state.contextTokens + 900);
+      // auto-compaction: every 5th turn the window is summarised back down, so
+      // the compaction-timeline panel has a real sawtooth to draw
+      if (state.turn % 5 === 0 && state.contextTokens > state.contextLimit * 0.2) {
+        const before = state.contextTokens;
+        state.contextTokens = Math.round(state.contextLimit * 0.3);
+        pushFeed('compaction', '压缩 · ' + before + ' → ' + state.contextTokens);
+        fire('compaction', { from: before, to: state.contextTokens });
+      }
       fire('usage', { contextTokens: state.contextTokens });
       fire('context', { tokens: state.contextTokens, limit: state.contextLimit });
       pushFeed('turn', 'turn ' + state.turn + ' started');

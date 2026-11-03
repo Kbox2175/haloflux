@@ -55,17 +55,25 @@ const STYLE = `
 .n{color:#3f434a;margin-right:8px}
 .vb{display:inline-block;width:38px;font-weight:800}
 .vb.错误{color:#f0a6c6} .vb.工具{color:#cfd2d8} .vb.回答{color:#98e0cf} .vb.输入{color:#f4f5f7}
-.vb.轮次{color:#cfd2d8} .vb.状态{color:#6b6f78}
+.vb.轮次{color:#cfd2d8} .vb.压缩{color:#f0a6c6} .vb.状态{color:#6b6f78}
 
 .btns{display:flex;gap:4px;margin-top:4px}
 .btns span{flex:1;font-size:8px;border:1px solid #3a3e46;padding:1px 5px;color:#6b6f78;transition:all .3s}
 .btns span.on{background:#cfd2d8;color:#000;border-color:#cfd2d8}
 
-.code{flex:1;min-height:0;font-size:9px;line-height:1.45;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end}
-.code div{white-space:nowrap}
-.code .ln{color:#3f434a;margin-right:10px}
-.code .fn{color:#f4f5f7;font-weight:800}
-.code .op{color:#6b6f78}
+/* ---- 3. 压缩·时间线 (DOM, v0.4) ---- */
+.tl{flex:1;min-height:0;display:flex;flex-direction:column;gap:3px;font-size:8px;color:#cfd2d8;overflow:hidden}
+.tl-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.tl-big{display:flex;align-items:baseline;gap:3px}
+.tl-count{font-size:17px;font-weight:800;color:#f4f5f7;font-variant-numeric:tabular-nums;letter-spacing:-.5px}
+.tl-unit{font-size:8px;color:#6b6f78}
+.tl-side{display:flex;flex-direction:column;align-items:flex-end;gap:1px;font-size:7px;color:#6b6f78;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tl-chart{width:100%;height:30px;flex:none;display:block;opacity:.9}
+.tl-line{fill:none;stroke:#98e0cf;stroke-width:1.4;vector-effect:non-scaling-stroke}
+.tl-area{stroke:none;fill:rgba(152,224,207,.14)}
+.tl-marks line{stroke:#f0a6c6;stroke-width:1.2;vector-effect:non-scaling-stroke}
+.tl-marks circle{fill:#f0a6c6}
+.tl-cap{font-size:6.5px;color:#6b6f78;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 .routes{display:grid;grid-template-columns:1.2fr repeat(3,1fr);gap:3px 6px;font-size:8px;align-content:start}
 .routes .h{color:#6b6f78;font-weight:800;letter-spacing:1px}
@@ -238,8 +246,8 @@ export function createShell(opts) {
       body.appendChild(document.createElement('canvas'));
     } else if (def.key === 'feed') {
       body.className = 'feed';
-    } else if (def.key === 'code') {
-      body.className = 'code';
+    } else if (def.key === 'tl') {
+      body.className = 'tl';
     } else if (def.key === 'spd') {
       body.className = 'spd';
     } else if (def.key === 'ctx') {
