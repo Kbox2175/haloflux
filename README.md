@@ -35,6 +35,7 @@ A full-screen, beat-driven sci-fi data visualization — a woven light-field cor
 - [x] ResizeObserver now watches the canvas itself (it used to watch the parent captured at creation, which missed the move into the stage and caused the stretched ring)
 - [x] `resize()` short-circuits when width/height/dpr are unchanged, so full-screen transitions and ResizeObserver storms no longer rebuild the web (2600 curves), the ring panels and the outer strands on every tick
 - [x] Full-screen geometry freeze (preview): entering full-screen locks the ring's reference size to the last window size, so the canvas stretches and the beams extend (`RMAX` follows the live viewport) without re-running the web/ring builds — the ring keeps its exact on-screen size. `ring.build` now skips when R/RO are unchanged. The wallpaper build keeps ref == live (it never leaves full-screen)
+- [ ] Next planned panels (discussed, not started): §4.2 of `PLAN.md` lists 8 telemetry panels (agent health, context pressure/speed, compaction timeline, cost, cache hit rate, token composition, tool health); the tool-health panel will add a single live "currently executing command" row at its head, scoped to the **main agent** only. Recorded in `PLAN.md`, awaiting the full panel discussion before building
 - [ ] Comets (grouped light bundles) and the remaining event mappings
 - [ ] Per-agent views and the mini console
 - [ ] Tauri unlock overlay and opening animation

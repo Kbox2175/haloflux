@@ -16,6 +16,7 @@
 | 6 | 锁屏方案 | **已确认**：静态帧 + 解锁续播 | 静态帧改为**阶段二随视觉定稿一并录制**；帧 0 必须可独立成图 |
 | 7 | 子 agent 展示 | **已确认**：改造现有 AGENTS 面板，2×3 滚动视口，共 12 张卡 | 替换"2px 小方块"方案，见 §4.3.1 |
 | 8 | 桌面壳 | **已确认 Tauri** | 包体 ~5MB、复用同一份 web 引擎、Rust 直接调 Win32 会话通知 |
+| 9 | 面板监测范围 | 待定稿：§4.2 的 8 监测 + 工具·健康头部「当前正在执行的命令」行 | 记录在 §4.2，全部讨论定稿后统一开工，暂不动代码 |
 
 **两条必须提前说明的现实约束**（详见 §6）：
 
@@ -118,18 +119,34 @@
 | 外缘双线 | 压缩预留 + `maxOutputTokens` | `tick()` |
 | 环旋转 | turn/step；compaction 反向急停 | `ringMove()` |
 
-### 4.2 八面板换真数据
+### 4.2 八面板换真数据（v0.4 提案，待全部讨论定稿后开工）
 
-| 面板 | 数据源 |
-|---|---|
-| INVESTIGATION FEED | `events[]` |
-| ADVECTION / PARTICLE SOLVER | `requests[]` 逐请求堆叠 |
-| METHOD WORKSPACE | `nodes[]` 组装顺序 |
-| SHARED SCENE / DIFF FIELD | 相邻 turn 的 `±N items / ±Nk tokens` |
-| SOURCE / ROUTES | `contextHeaders...tools[].plugin` |
-| VALIDATION / SAMPLE BUFFER | `spans[].kind` |
-| 12 AGENTS / DISPATCH | Fleet 血缘 + 状态（面板改造见 §4.3.1） |
-| METHOD / REFERENCE INDEX | `contextActivity.days[]` |
+| # | 面板 | 监测内容 | 可视化 | 数据源 / 可得性 |
+|---|---|---|---|---|
+| 1 | 智能体·健康 | 当前 agent / 父 / 子 agent 状态 | 彩色网格（绿/琥珀/红/灰） | Task 工具近似（⚠️ 非真 Fleet） |
+| 2 | 上下文·压力 | 占用 %、剩余、距自动压缩 | 水位条 + 阈值刻度 | `contextPressure` 投影，现成 |
+| 3 | 上下文·速度 | 最近 N 步 tokens 增长速率、预计满载时间 | 斜率折线 | 事件流累加，可算 |
+| 4 | 压缩·时间线 | 压缩 / 截断事件，上下文随步演进 | 锯齿面积图 + 事件标记 | 可算 |
+| 5 | 成本·估算 | 累计成本、每步成本 | 累积面积 + 数字 | 模型单价表，可算 |
+| 6 | 缓存·命中率 | cacheRead / (cacheRead + uncached) | 仪表 / 环形 | `tokenUsage` 投影，现成 |
+| 7 | Token·构成 | 输入 / 输出 / 缓存读 / 缓存写 / 推理 占比 | 堆叠条 | `tokenUsage` 投影，现成 |
+| 8 | 工具·健康 | 按调用数排序的工具、成功率、平均耗时 | 横条 + 红绿 | 事件流累加，可算 |
+
+**#1 限制**：适配器只看到**主会话事件流**，子 agent 在其中表现为一次 `tool/call` + `tool/result`。宏观健康可做（有没有子 agent 在跑、有没有失败），**做不到 `dsh-context` 那种每个子 agent 独立实时卡**。要真 Fleet 需读 DSH 的 agent 投影（待验证是否有可读投影键）。
+
+**已确认 · 待实现（记录在此，不开工）**：
+
+1. **工具·健康面板头部新增「当前正在执行的命令」一行**
+   - 只加一行，置于面板头部；实时变化
+   - **只检测主 agent 的命令执行情况**（Task / 子 agent 内部命令不计入）
+   - 命令来源：`tool/call` 中命令型工具（shell / bash / execute 类），从调用参数或工具名提取命令文本；随 `tool/result` 返回清空
+   - 实现前提：当前 8 栏尚无名为「工具·健康」的面板，需先建出该面板才能落这行；等 8 栏全部讨论定稿后一起开工
+
+2. **8 监测面板范围待用户确认**：上表的 8 个监测 + 第 1 条命令行，用户确认后才统一重建。
+
+> 说明：HALOFLUX 定位是常驻、可一眼扫视的迷你视图，不复刻 `dsh-context` 的多页完整仪表板（细节交给它）。数据先全部从事件流 + 投影自算，不耦合 dsh-context 内部缓存。
+
+> 上一版八面板的英文占位名映射（供对照，将被上表替换）：INVESTIGATION FEED / ADVECTION / PARTICLE SOLVER / METHOD WORKSPACE / SHARED SCENE / DIFF FIELD / SOURCE / ROUTES / VALIDATION / SAMPLE BUFFER / 12 AGENTS / DISPATCH / METHOD / REFERENCE INDEX。
 
 ### 4.3 多 agent 视图（新增）
 
