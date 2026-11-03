@@ -13,7 +13,7 @@
 import { PANELS } from './panels.js';
 
 const STYLE = `
-.halo-shell{position:relative;height:100vh;background:#08090b;color:#cfd2d8;
+.halo-shell{position:relative;height:100%;background:#08090b;color:#cfd2d8;
   font-family:ui-monospace,"Cascadia Mono","SF Mono",Consolas,monospace;overflow:hidden}
 
 /* The canvas owns the whole viewport. The header and the panel row are
@@ -219,11 +219,9 @@ export function createShell(opts) {
   function setVisible(v) {
     visible = v;
     panelsEl.style.display = v ? '' : 'none';
-    syncOverlay();
     // the panel canvases need a real box before they can be measured; wait one
-    // frame for the layout to settle, then re-sync overlay + panel sizes
+    // frame for the layout to settle, then resize them
     requestAnimationFrame(() => {
-      syncOverlay();
       if (v) {
         for (const { created } of creators) {
           try { created.resize && created.resize(); } catch { /* ignore */ }
@@ -231,23 +229,6 @@ export function createShell(opts) {
       }
     });
     if (o.onToggle) o.onToggle(v);
-  }
-
-  /**
-   * Tell the engine which rectangle the panels cover, so the canvas skips
-   * drawing there. The panels are opaque, so this is purely a saving — but it
-   * also keeps the ring from bleeding behind the panel edges.
-   */
-  function syncOverlay() {
-    if (!engine.setOverlay) return;
-    if (!visible) { engine.setOverlay(null); return; }
-    const r = panelsEl.getBoundingClientRect();
-    const sr = shell.getBoundingClientRect();
-    const left = r.left - sr.left;
-    const top = r.top - sr.top;
-    const width = r.width;
-    const height = r.height;
-    engine.setOverlay({ left, top, width, height });
   }
 
   function update() {
@@ -289,7 +270,7 @@ export function createShell(opts) {
     if (e.key === 'f' || e.key === 'F') {
       e.preventDefault();
       if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-      else document.documentElement.requestFullscreen().catch(() => {});
+      else shell.requestFullscreen().catch(() => {});
     }
   }
   document.addEventListener('keydown', onKey);

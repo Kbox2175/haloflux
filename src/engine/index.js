@@ -85,8 +85,6 @@ export function createHaloflux(canvas, options = {}) {
    * from eating the ring. Drawing inside it is skipped — the panels overlay it,
    * so nothing is lost and the ring reads as wrapping around them.
    */
-  let overlay = null;
-
   /**
    * Traffic per ring panel, in "data volume" units. The rotation rule reads
    * this to decide which panel to aim at the horizontal axis.
@@ -116,9 +114,19 @@ export function createHaloflux(canvas, options = {}) {
     // Measure the canvas itself (not its parent), so a caller can pin an exact
     // stage size for screenshot comparison.
     const rect = canvas.getBoundingClientRect();
-    W = Math.max(1, Math.round(rect.width));
-    H = Math.max(1, Math.round(rect.height));
-    dpr = Math.min(opt.dpr, Q.dprCap) * Q.renderScale;
+    const nextW = Math.max(1, Math.round(rect.width));
+    const nextH = Math.max(1, Math.round(rect.height));
+    const nextDpr = Math.min(opt.dpr, Q.dprCap) * Q.renderScale;
+
+    // Full-screen transitions and stray ResizeObserver ticks fire many times
+    // for the same geometry; rebuilding the web (2600 curves), the ring panels
+    // and the outer strands on every one is the 1–2 s stutter. Short-circuit
+    // unless the backing size actually changed.
+    if (W === nextW && H === nextH && Math.abs(dpr - nextDpr) < 0.001) return;
+
+    W = nextW;
+    H = nextH;
+    dpr = nextDpr;
     canvas.width = Math.max(1, Math.round(W * dpr));
     canvas.height = Math.max(1, Math.round(H * dpr));
     cx = W * 0.07;
@@ -143,24 +151,16 @@ export function createHaloflux(canvas, options = {}) {
     ctx.fillStyle = '#08090b';
     ctx.fillRect(0, 0, W, H);
 
-    // keep the panel band out of the canvas: the panels sit on top of it, so
-    // the ring has to wrap around them rather than render underneath
-    const clip = overlay && overlay.height > 0 && overlay.width > 0 ? overlay : null;
-    if (clip) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(clip.left, clip.top, clip.width, clip.height);
-      ctx.clip();
-    }
-
+    // The canvas owns the full viewport; the panel band and header are opaque
+    // DOM overlays above it, so whatever the ring draws under them is naturally
+    // hidden. No clipping needed — clip(right-band) would wrongly erase the
+    // ring centre that shares the band's vertical range.
     const e = beat.env;
     web.draw(ctx, { cx, cy, R, env: e });
 
     outer.draw(ctx, { W, H, cx, cy, R, RO, RMAX, thS, DPR: dpr, FS: Q.farDown });
 
     ring.draw(ctx, { cx, cy, R, RO, thV, W, H, dt });
-
-    if (clip) ctx.restore();
 
     if (opt.hud) {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -288,14 +288,6 @@ export function createHaloflux(canvas, options = {}) {
   }
 
   /**
-   * Set/clear the panel band the canvas should not draw into.
-   * @param {{left:number,top:number,width:number,height:number}|null} rect
-   */
-  function setOverlay(rect) {
-    overlay = rect && rect.height > 0 && rect.width > 0 ? rect : null;
-  }
-
-  /**
    * Discrete event from the data link (tool_call / tool_result / compaction…).
    *
    * When `slot` is given, the event is anchored to that ring panel: the beam
@@ -390,7 +382,6 @@ export function createHaloflux(canvas, options = {}) {
     pushImpulse,
     pushTick,
     setMode,
-    setOverlay,
     detectTraffic,
     get traffic() { return traffic.slice(); },
     get link() { return link; },

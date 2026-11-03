@@ -31,9 +31,9 @@ A full-screen, beat-driven sci-fi data visualization — a woven light-field cor
 - [x] Page shell (`src/ui/shell.js`): header KPIs (轮次 / 步 / 生成速率 / 上下文占用 / 工具) + the eight panels, all driven by the same link snapshot the ring reads
 - [x] Eight panels use real data: 调查流 (feed), 平流/粒子求解器 (tps-driven flow), 方法工作区 (turn/step), 共享场景/差分场 (context), 来源/提取路由 (tools), 校验/采样缓冲 (sparklines), 智能体/调度 (agents), 方法/参考索引 (matrix)
 - [x] `P` key toggles the panel row; `F` toggles fullscreen
-- [x] Panels overlay the stage instead of taking grid rows — the canvas is always full-viewport, so the ring keeps the same geometry whether the panels are open or closed
-- [x] `engine.setOverlay(rect)`: the shell passes the panel band and the canvas skips drawing inside it, so the ring wraps around the panels instead of rendering underneath
+- [x] Panels overlay the stage instead of taking grid rows — the canvas is always full-viewport, so the ring keeps the same geometry whether the panels are open or closed. The panels are opaque DOM overlays above the canvas, so the ring simply renders underneath their band (no canvas clipping — an earlier clip(panel-band) was reversed and erased the ring centre)
 - [x] ResizeObserver now watches the canvas itself (it used to watch the parent captured at creation, which missed the move into the stage and caused the stretched ring)
+- [x] `resize()` short-circuits when width/height/dpr are unchanged, so full-screen transitions and ResizeObserver storms no longer rebuild the web (2600 curves), the ring panels and the outer strands on every tick
 - [ ] Comets (grouped light bundles) and the remaining event mappings
 - [ ] Per-agent views and the mini console
 - [ ] Tauri unlock overlay and opening animation
