@@ -185,65 +185,102 @@ export function createWorkspacePanel(host) {
   };
 }
 
-/* ---------------- 4. 共享场景 / 差分场 ---------------- */
+/* ---------------- 4. 上下文·压力 ----------------
+ * The second v0.4 telemetry panel. A DOM water-level meter for context
+ * occupancy: a big percentage, the headroom left before the window fills,
+ * threshold ticks at the compaction marks, and a short occupancy sparkline so
+ * "rising" and "falling" are visible at a glance. Reads the same link snapshot
+ * the ring's rim arc uses (contextTokens / contextLimit).
+ */
 
-export function createDiffPanel(host) {
-  let buf = { a: 0, b: 0, t: 0 };
+const CTX_THRESHOLDS = [0.5, 0.75, 0.9, 0.95];
+const CTX_LABELS = ['50', '75', '90', '95'];
+const CTX_COMPACT = 0.9; // assume auto-compaction fires at 90% of the window
 
-  function draw(ctx, w, h) {
-    ctx.clearRect(0, 0, w, h);
-    ctx.font = '600 7px ui-monospace, Consolas, monospace';
-    ctx.textBaseline = 'top';
-    const gap = 8;
-    const mw = (w - gap) / 2;
-    const mh = h * 0.68;
-    const cols = 22;
-    const rows = 13;
-    const cw = mw / cols;
-    const ch = (mh - 10) / rows;
-    const hist = new Array(28).fill(0);
+/** Compact token formatter: 37200 → "37.2K", 800 → "800". */
+function fmtK(n) {
+  const v = Math.max(0, Math.round(n || 0));
+  if (v >= 1000) return (v / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+  return String(v);
+}
 
-    for (let m = 0; m < 2; m++) {
-      const ox = m * (mw + gap);
-      ctx.fillStyle = m ? '#98e0cf' : '#6b6f78';
-      ctx.fillText(m ? '实现' : '参考', ox, 0);
-      for (let j = 0; j < rows; j++) {
-        for (let i = 0; i < cols; i++) {
-          let v = 0.5 + 0.25 * Math.sin(i * 0.45 + buf.t * 0.8) * Math.cos(j * 0.5 - buf.t * 0.5) + 0.2 * Math.sin((i + j) * 0.3 + buf.t);
-          let err = 0;
-          if (m) {
-            const dx = i - 15 - Math.sin(buf.t * 0.7) * 3;
-            const dy = j - 6;
-            err = Math.exp(-(dx * dx + dy * dy) / 6) * (0.5 + 0.5 * Math.sin(buf.t * 2));
-            v += err * 0.3;
-            hist[Math.min(27, (err * 27) | 0)]++;
-          }
-          const g = clamp(v * 210 + 20, 0, 255) | 0;
-          ctx.fillStyle = err > 0.35 ? `rgba(240,166,198,${0.5 + err * 0.5})` : `rgb(${g},${g},${g + 4})`;
-          ctx.fillRect(ox + i * cw, 10 + j * ch, cw - 0.6, ch - 0.6);
-        }
-      }
-    }
-    const by = mh + 4;
-    const bh = h - by;
-    const bw = w / hist.length;
-    const mx = Math.max(...hist.slice(1), 1);
-    hist.forEach((v, i) => {
-      const hh = i === 0 ? bh * 0.9 : (v / mx) * bh * 0.8 + 1;
-      ctx.fillStyle = i > 9 ? '#f0a6c6' : '#8a8e97';
-      ctx.fillRect(i * bw, by + bh - hh, bw - 1, hh);
-    });
+/** Occupancy → status colour: calm teal, busy pink, critical white. */
+function ctxLevelColor(level) {
+  if (level >= 0.85) return '#f4f5f7';
+  if (level >= 0.6) return '#f0a6c6';
+  return '#98e0cf';
+}
+
+export function createContextPressurePanel(host) {
+  const box = host.querySelector('.ctx');
+  const MAX_SAMPLES = 48;
+  const samples = [];
+  let lastSample = -1;
+
+  function build() {
+    const ticks = CTX_THRESHOLDS.map((t) =>
+      `<span class="ctx-tick" style="left:${(t * 100).toFixed(1)}%"></span>`).join('');
+    const labels = CTX_THRESHOLDS.map((t, i) =>
+      `<span style="left:${(t * 100).toFixed(1)}%">${CTX_LABELS[i]}</span>`).join('');
+    box.innerHTML =
+      '<div class="ctx-top">' +
+      '<div class="ctx-big"><b class="ctx-pct">0%</b></div>' +
+      '<div class="ctx-side"><span class="ctx-rem">剩余 —</span><span class="ctx-lim">—</span></div>' +
+      '</div>' +
+      '<div class="ctx-bar"><i class="ctx-fill" style="width:0%;background:#98e0cf"></i>' + ticks + '</div>' +
+      '<div class="ctx-scale">' + labels + '</div>' +
+      '<svg class="ctx-spark" viewBox="0 0 100 28" preserveAspectRatio="none">' +
+      '<path class="ctx-area" d=""></path>' +
+      '<polyline class="ctx-line" points=""></polyline>' +
+      '</svg>';
   }
+
+  function renderSpark(color) {
+    const line = box.querySelector('.ctx-line');
+    const area = box.querySelector('.ctx-area');
+    const n = samples.length;
+    if (n < 2) { line.setAttribute('points', ''); area.setAttribute('d', ''); return; }
+    const pts = samples.map((v, i) =>
+      `${((i / (n - 1)) * 100).toFixed(2)},${(26 - v * 24).toFixed(2)}`);
+    line.setAttribute('points', pts.join(' '));
+    line.style.stroke = color;
+    area.setAttribute('d', 'M0,28 L' + pts.join(' L') + ' L100,28 Z');
+    area.style.fill = color;
+  }
+
+  build();
 
   return {
     update(s) {
-      buf.t += 0.016;
-      if (s && s.link) {
-        buf.a = s.link.contextTokens || 0;
-        buf.b = s.link.contextLimit || 0;
+      if (!box) return;
+      const link = s && s.link;
+      const tokens = link ? (link.contextTokens || 0) : 0;
+      const limit = link ? (link.contextLimit || 0) : 0;
+      const level = limit > 0 ? Math.max(0, Math.min(1, tokens / limit)) : 0;
+      const color = ctxLevelColor(level);
+      const pct = level * 100;
+
+      const pctEl = box.querySelector('.ctx-pct');
+      pctEl.textContent = pct.toFixed(1) + '%';
+      pctEl.style.color = color;
+
+      box.querySelector('.ctx-rem').textContent = '剩余 ' + (limit > 0 ? fmtK(limit - tokens) : '—');
+      box.querySelector('.ctx-lim').textContent = limit > 0
+        ? (level >= CTX_COMPACT ? '已达压缩阈值' : '距压缩 ' + fmtK(limit * CTX_COMPACT - tokens))
+        : '—';
+
+      const fill = box.querySelector('.ctx-fill');
+      fill.style.width = (level * 100).toFixed(1) + '%';
+      fill.style.background = color;
+
+      // sample only when the level visibly moves, so the sparkline tracks the
+      // data tick instead of being redrawn 60×/s with the same value
+      if (lastSample < 0 || Math.abs(level - lastSample) > 0.003) {
+        lastSample = level;
+        samples.push(level);
+        if (samples.length > MAX_SAMPLES) samples.shift();
       }
-      const c = canvasFor(host);
-      if (c) draw(c.ctx, c.w, c.h);
+      renderSpark(color);
     },
     resize() {},
     dispose() {}
@@ -555,7 +592,7 @@ export const PANELS = [
   { key: 'feed', title: '调查流', cap: '实时事件', create: createFeedPanel },
   { key: 'adv', title: '平流 / 粒子求解器', cap: '流速 ∝ 生成速率', create: createAdvectionPanel },
   { key: 'code', title: '方法工作区', cap: '轮次推进', create: createWorkspacePanel },
-  { key: 'diff', title: '共享场景 / 差分场', cap: '同输入 · 本地差分', create: createDiffPanel },
+  { key: 'ctx', title: '上下文·压力', cap: '占用水位 · 距压缩', create: createContextPressurePanel },
   { key: 'routes', title: '来源 / 提取路由', cap: '通道 → 可运行源码', create: createRoutesPanel },
   { key: 'tools', title: '工具·健康', cap: '命令 · 缓存 · 工具', create: createToolHealthPanel },
   { key: 'agents', title: '智能体 / 调度', cap: '独立作业 · 共享事件总线', create: createAgentsPanel },

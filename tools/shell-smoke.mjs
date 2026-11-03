@@ -161,7 +161,7 @@ const sample = {
 };
 
 const created = [];
-const CANVAS_PANELS = new Set(['adv', 'diff', 'idx']);
+const CANVAS_PANELS = new Set(['adv', 'idx']);
 for (const def of PANELS) {
   const host = new FakeEl('div');
   const body = new FakeEl('div');
@@ -202,6 +202,35 @@ if (toolsEntry) {
   check('tools: tool rows rendered', !!trows && /read_file/.test(trows.innerHTML || ''), 'no rows');
 } else {
   check('tools panel present', false);
+}
+
+// ---- context-pressure panel (DOM) content ----
+const ctxEntry = created.find((c) => c.key === 'ctx');
+if (ctxEntry) {
+  const cb = ctxEntry.body;
+  const p = ctxEntry.p;
+  const big = cb.querySelector('.ctx-pct');
+  const fill = cb.querySelector('.ctx-fill');
+  const rem = cb.querySelector('.ctx-rem');
+  const lim = cb.querySelector('.ctx-lim');
+
+  // sample link: 24000 / 65536 = 36.6%
+  check('ctx: percentage rendered', !!big && big.textContent === '36.6%', big ? big.textContent : '');
+  check('ctx: water bar width matches occupancy', !!fill && fill.style.width === '36.6%', fill ? fill.style.width : '');
+  check('ctx: remaining is formatted', !!rem && rem.textContent === '剩余 41.5K', rem ? rem.textContent : '');
+  check('ctx: compaction headroom is formatted', !!lim && lim.textContent === '距压缩 35K', lim ? lim.textContent : '');
+
+  // a rising level must move the readout, the bar and the sparkline
+  const heavier = { ...sample, link: { ...sample.link, contextTokens: 58983 } }; // 90.0% → past the 90% compaction mark
+  p.update(heavier, 0.016);
+  check('ctx: high occupancy flips the readout', big.textContent === '90.0%', big.textContent);
+  check('ctx: bar width follows the new level', fill.style.width === '90.0%', fill.style.width);
+  check('ctx: compaction threshold hit', lim.textContent === '已达压缩阈值', lim.textContent);
+  const line = cb.querySelector('.ctx-line');
+  check('ctx: sparkline samples the trend', !!line && (line.getAttribute('points') || '').split(' ').length >= 2,
+    line ? line.getAttribute('points') : '');
+} else {
+  check('ctx panel present', false);
 }
 
 for (const { p, def } of created) {

@@ -115,6 +115,20 @@ const STYLE = `
 .tools .tg.err{color:#f0a6c6}
 .tools .tc{color:#6b6f78;font-size:7px;font-variant-numeric:tabular-nums;flex:none}
 
+/* ---- 4. 上下文·压力 (DOM, v0.4) ---- */
+.ctx{flex:1;min-height:0;display:flex;flex-direction:column;gap:3px;font-size:8px;color:#cfd2d8;overflow:hidden}
+.ctx-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.ctx-big b{font-size:17px;font-weight:800;color:#f4f5f7;font-variant-numeric:tabular-nums;letter-spacing:-.5px}
+.ctx-side{display:flex;flex-direction:column;align-items:flex-end;gap:1px;font-size:7px;color:#6b6f78;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ctx-bar{position:relative;height:9px;border-radius:1px;background:#1d1f24;flex:none}
+.ctx-fill{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:1px;transition:width .5s ease,background .4s ease}
+.ctx-tick{position:absolute;top:-2px;width:1px;height:13px;background:#3a3e46}
+.ctx-scale{position:relative;height:8px;flex:none}
+.ctx-scale span{position:absolute;top:0;transform:translateX(-50%);font-size:6.5px;color:#6b6f78;font-variant-numeric:tabular-nums}
+.ctx-spark{width:100%;height:28px;flex:none;display:block;opacity:.9}
+.ctx-line{fill:none;stroke:#98e0cf;stroke-width:1.4;vector-effect:non-scaling-stroke}
+.ctx-area{stroke:none}
+
 @media (max-width:1000px){
   html,body{overflow:auto} .halo-shell{height:auto}
   .halo-stage{height:62vh}
@@ -208,12 +222,14 @@ export function createShell(opts) {
 
     // canvas panels render into their own canvas; the rest need a container
     // with the class their renderer looks for.
-    if (def.key === 'adv' || def.key === 'diff' || def.key === 'idx') {
+    if (def.key === 'adv' || def.key === 'idx') {
       body.appendChild(document.createElement('canvas'));
     } else if (def.key === 'feed') {
       body.className = 'feed';
     } else if (def.key === 'code') {
       body.className = 'code';
+    } else if (def.key === 'ctx') {
+      body.className = 'ctx';
     } else if (def.key === 'routes') {
       body.className = 'routes';
     } else if (def.key === 'agents') {

@@ -3,5 +3,6 @@ dist/
 .chrome-profile*/
 .npm-cache/
 baselines/
+captures/
 *.log
 .ref/
