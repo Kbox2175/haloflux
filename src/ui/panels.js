@@ -287,55 +287,160 @@ export function createRoutesPanel(host) {
   };
 }
 
-/* ---------------- 6. 校验 / 采样缓冲 ---------------- */
+/* ---------------- 6. 工具·健康（DOM 原型） ----------------
+ * A DOM-rendered panel, the first of the v0.4 telemetry set. It borrows the
+ * structural techniques from dsh-context (SVG donut via stroke-dasharray, a
+ * percentage stacked bar, horizontal tool rows) but uses HALOFLUX's own palette
+ * and type scale. No charting library — plain DOM + CSS.
+ *
+ *   ⏳ bash(npm run build) · 12s     ← live command row (main agent only)
+ *   ┌ donut ┐  ┌ stacked bar ┐      ← cache hit / token composition
+ *   │ read  ████████ ✓              ← tool health rows
+ */
 
-export function createValidationPanel(host) {
-  const buf = [[], [], []];
-  const names = ['上下文占用', '生成速率', '工具调用'];
+const TH_COLORS = { cache: '#98e0cf', input: '#f0a6c6', output: '#cfd2d8' };
+const TH_STATE = { ok: '#98e0cf', error: '#f0a6c6', running: '#f4f5f7' };
 
-  function draw(ctx, w, h) {
-    ctx.clearRect(0, 0, w, h);
-    ctx.font = '800 7px ui-monospace, Consolas, monospace';
-    ctx.textBaseline = 'middle';
-    const lw = 58;
-    const n = Math.floor((w - lw) / 2);
-    const rh = h / 3;
-    for (let k = 0; k < 3; k++) {
-      const yc = rh * k + rh / 2;
-      ctx.fillStyle = '#9a9ea7';
-      ctx.fillText(names[k], 0, yc);
-      ctx.strokeStyle = '#1f2227';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(lw, yc);
-      ctx.lineTo(w, yc);
-      ctx.stroke();
-      ctx.strokeStyle = k === 1 && buf[1].length > 4 ? '#f0a6c6' : '#e6e8ec';
-      ctx.lineWidth = 1.1;
-      ctx.beginPath();
-      buf[k].forEach((v, i) => {
-        const px = lw + i * 2;
-        const py = yc - v * rh * 0.45;
-        i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
-      });
-      ctx.stroke();
+export function createToolHealthPanel(host) {
+  const box = host.querySelector('.tools');
+  const MAX_TOOLS = 4;
+
+  // command row state
+  let cmdText = '';
+  let cmdState = null; // 'running' | 'done'
+  let cmdStart = 0;
+  let cmdDur = 0;
+
+  // tool stats, tracked from the feed (main-session tool calls only)
+  const toolStats = new Map(); // name -> { count, failed }
+
+  function toolNameOf(text) {
+    const i = text.indexOf('(');
+    return i > 0 ? text.slice(0, i) : text;
+  }
+
+  function build() {
+    box.innerHTML =
+      '<div class="th">' +
+      '<div class="cmd"><span class="g">⏳</span><span class="tx"></span><span class="du"></span></div>' +
+      '<div class="mid">' +
+      '<div class="dn"><svg viewBox="0 0 42 42" class="dn-svg">' +
+      '<circle class="dn-t" cx="21" cy="21" r="15.9155"></circle>' +
+      '<circle class="dn-s" cx="21" cy="21" r="15.9155"></circle></svg>' +
+      '<div class="dn-c"><b class="dn-pct">0%</b><span>缓存</span></div></div>' +
+      '<div class="st"><div class="st-bar"></div><div class="st-leg"></div></div>' +
+      '</div>' +
+      '<div class="trows"></div>' +
+      '</div>';
+  }
+
+  function renderCmd(s) {
+    const el = box.querySelector('.cmd');
+    const g = el.querySelector('.g');
+    const tx = el.querySelector('.tx');
+    const du = el.querySelector('.du');
+    // find the last tool_call feed line (has an argument list)
+    const feed = (s && s.link && s.link.feed) || [];
+    let found = '';
+    for (let i = feed.length - 1; i >= 0; i--) {
+      const f = feed[i];
+      if (f && f.kind === 'tool' && f.text && f.text.indexOf('(') > 0) { found = f.text; break; }
+    }
+    const anyRunning = (s && s.link && s.link.tools || []).some((t) => t.state === 'running');
+    const next = found || '';
+    if (next !== cmdText) { cmdText = next; cmdStart = Date.now(); cmdDur = 0; }
+    const state = anyRunning ? 'running' : (cmdText ? 'done' : null);
+    cmdState = state;
+    if (state === 'running') cmdDur = Math.max(0, Math.round((Date.now() - cmdStart) / 1000));
+    g.textContent = state === 'running' ? '⏳' : (state === 'done' ? '✓' : '·');
+    g.className = 'g' + (state === 'running' ? ' run' : (state === 'done' ? ' ok' : ''));
+    tx.textContent = cmdText || '—';
+    du.textContent = state ? cmdDur + 's' : '';
+  }
+
+  function renderDonut(s) {
+    const link = s && s.link;
+    const input = link ? (link.input || 0) : 0;
+    const cache = link ? (link.cacheReadTokens || 0) : 0;
+    const pct = input > 0 ? Math.min(100, Math.round(cache / input * 100)) : 0;
+    const seg = box.querySelector('.dn-s');
+    seg.setAttribute('stroke-dasharray', `${pct} ${100 - pct}`);
+    seg.setAttribute('stroke-dashoffset', '25');
+    seg.style.stroke = pct > 0 ? TH_COLORS.cache : 'transparent';
+    const c = box.querySelector('.dn-pct');
+    c.textContent = pct + '%';
+  }
+
+  function renderStack(s) {
+    const link = s && s.link;
+    const cache = link ? (link.cacheReadTokens || 0) : 0;
+    const input = link ? (link.input || 0) : 0;
+    const output = link ? (link.output || 0) : 0;
+    const uncached = Math.max(0, input - cache);
+    const parts = [
+      { k: '缓存读', v: cache, c: TH_COLORS.cache },
+      { k: '未缓存', v: uncached, c: TH_COLORS.input },
+      { k: '输出', v: output, c: TH_COLORS.output }
+    ];
+    const total = parts.reduce((a, p) => a + p.v, 0) || 1;
+    const bar = box.querySelector('.st-bar');
+    const leg = box.querySelector('.st-leg');
+    bar.innerHTML = parts.map((p) => p.v > 0
+      ? `<i style="width:${(p.v / total * 100).toFixed(1)}%;background:${p.c}"></i>` : '').join('');
+    leg.innerHTML = parts.map((p) => p.v > 0
+      ? `<span><i style="background:${p.c}"></i>${p.k}</span>` : '').join('');
+  }
+
+  function renderTools() {
+    const wrap = box.querySelector('.trows');
+    const rows = [];
+    const seen = new Set();
+    for (const [name, st] of toolStats) {
+      if (seen.has(name)) continue;
+      seen.add(name);
+      rows.push({ name, count: st.count, failed: st.failed });
+    }
+    rows.sort((a, b) => b.count - a.count);
+    const top = rows.slice(0, MAX_TOOLS);
+    const max = top.reduce((a, r) => Math.max(a, r.count), 1);
+    wrap.innerHTML = top.map((r) => {
+      const ok = r.failed === 0;
+      const col = ok ? TH_STATE.ok : TH_STATE.error;
+      const glyph = ok ? '✓' : '✕';
+      return `<div class="trow"><span class="tn">${r.name}</span>` +
+        `<span class="tb"><i style="width:${(r.count / max * 100).toFixed(0)}%;background:${col}"></i></span>` +
+        `<span class="tg ${ok ? 'ok' : 'err'}">${glyph}</span><span class="tc">${r.count}</span></div>`;
+    }).join('');
+  }
+
+  function trackTools(s) {
+    const feed = (s && s.link && s.link.feed) || [];
+    for (let i = 0; i < feed.length; i++) {
+      const f = feed[i];
+      if (!f || !f.text) continue;
+      if (f.kind === 'tool' && f.text.indexOf('(') > 0) {
+        const name = toolNameOf(f.text);
+        const st = toolStats.get(name) || { count: 0, failed: 0 };
+        st.count++;
+        toolStats.set(name, st);
+      } else if (f.kind === 'error' || (f.kind === 'tool' && /error|失败/.test(f.text))) {
+        const name = toolNameOf(f.text);
+        const st = toolStats.get(name);
+        if (st) st.failed++;
+      }
     }
   }
+
+  build();
 
   return {
     update(s) {
       if (!s || !s.link) return;
-      const lim = s.link.contextLimit || 1;
-      const occ = s.link.contextTokens / lim;
-      buf[0].push(occ);
-      buf[1].push(Math.min(1, (s.link.tps || 0) / 60));
-      buf[2].push(Math.min(1, (s.link.tools || []).length / 8));
-      for (let k = 0; k < 3; k++) {
-        const b = buf[k];
-        while (b.length > Math.max(2, Math.floor((host.querySelector('canvas')?.getBoundingClientRect().width || 200) - 58) / 2)) b.shift();
-      }
-      const c = canvasFor(host);
-      if (c) draw(c.ctx, c.w, c.h);
+      trackTools(s);
+      renderCmd(s);
+      renderDonut(s);
+      renderStack(s);
+      renderTools();
     },
     resize() {},
     dispose() {}
@@ -452,7 +557,7 @@ export const PANELS = [
   { key: 'code', title: '方法工作区', cap: '轮次推进', create: createWorkspacePanel },
   { key: 'diff', title: '共享场景 / 差分场', cap: '同输入 · 本地差分', create: createDiffPanel },
   { key: 'routes', title: '来源 / 提取路由', cap: '通道 → 可运行源码', create: createRoutesPanel },
-  { key: 'val', title: '校验 / 采样缓冲', cap: '占用 · 速率 · 工具', create: createValidationPanel },
+  { key: 'tools', title: '工具·健康', cap: '命令 · 缓存 · 工具', create: createToolHealthPanel },
   { key: 'agents', title: '智能体 / 调度', cap: '独立作业 · 共享事件总线', create: createAgentsPanel },
   { key: 'idx', title: '方法 / 参考索引', cap: '11 方法 · 28 参考', create: createIndexPanel }
 ];

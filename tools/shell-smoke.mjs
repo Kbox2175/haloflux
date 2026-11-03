@@ -77,9 +77,13 @@ class FakeEl {
     }
   }
   get innerHTML() { return this._html; }
+  get firstChild() { return this.children[0] || null; }
+  get lastChild() { return this.children[this.children.length - 1] || null; }
   appendChild(c) { this.children.push(c); c.parentElement = this; return c; }
   removeChild(c) { this.children = this.children.filter((x) => x !== c); }
   remove() {}
+  setAttribute(k, v) { this[`_attr_${k}`] = String(v); }
+  getAttribute(k) { return this[`_attr_${k}`] !== undefined ? this[`_attr_${k}`] : null; }
   addEventListener() {}
   removeEventListener() {}
   getContext() { return fakeCtx(); }
@@ -148,6 +152,7 @@ function check(name, cond, extra) {
 const sample = {
   link: {
     running: true, activity: 1, tps: 24.5, totalTokens: 1200, inputTokens: 900, outputTokens: 300,
+    input: 900, output: 300, cacheReadTokens: 600,
     contextTokens: 24000, contextLimit: 65536, turn: 3, step: 7, model: 'deepseek-chat',
     tools: [{ name: 'read_file', state: 'ok' }, { name: 'bash', state: 'running' }],
     feed: [{ kind: 'tool', text: 'read_file(…)', t: Date.now() }],
@@ -156,7 +161,7 @@ const sample = {
 };
 
 const created = [];
-const CANVAS_PANELS = new Set(['adv', 'diff', 'val', 'idx']);
+const CANVAS_PANELS = new Set(['adv', 'diff', 'idx']);
 for (const def of PANELS) {
   const host = new FakeEl('div');
   const body = new FakeEl('div');
@@ -171,7 +176,7 @@ for (const def of PANELS) {
     check(`panel ${def.key} created`, false, e.message);
     continue;
   }
-  created.push({ key: def.key, def, p });
+  created.push({ key: def.key, def, p, body });
   try { p.update(sample, 0.016); p.update(sample, 0.016); } catch (e) {
     check(`panel ${def.key} updates`, false, e.message);
     continue;
@@ -180,6 +185,24 @@ for (const def of PANELS) {
 }
 
 check('all eight panels built', created.length === 8, `${created.length}`);
+
+// ---- tools panel (DOM prototype) content ----
+const toolsEntry = created.find((c) => c.key === 'tools');
+if (toolsEntry) {
+  const tb = toolsEntry.body;
+  const cmd = tb.querySelector('.cmd');
+  const tx = tb.querySelector('.tx');
+  const pct = tb.querySelector('.dn-pct');
+  const bar = tb.querySelector('.st-bar');
+  const trows = tb.querySelector('.trows');
+  check('tools: command row rendered', !!cmd && !!tx, 'cmd/tx missing');
+  check('tools: command text from feed', tx && tx.textContent.indexOf('read_file') >= 0, tx ? tx.textContent : '');
+  check('tools: donut percentage rendered', !!pct && /%/.test(pct.textContent || ''), pct ? pct.textContent : '');
+  check('tools: stacked bar has segments', !!bar && /<i/.test(bar.innerHTML || ''), 'no segments');
+  check('tools: tool rows rendered', !!trows && /read_file/.test(trows.innerHTML || ''), 'no rows');
+} else {
+  check('tools panel present', false);
+}
 
 for (const { p, def } of created) {
   try { if (p.resize) p.resize(); p.dispose(); } catch (e) {

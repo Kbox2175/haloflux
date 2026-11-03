@@ -12,6 +12,18 @@
 
 const TOOLS = ['read_file', 'write_file', 'search', 'bash', 'subagent', 'edit', 'web_fetch', 'plan'];
 
+/** Per-tool sample arguments, so the command row has something realistic. */
+const TOOL_ARGS = {
+  read_file: ['src/engine/index.js', 'src/data/link.js', 'PLAN.md', 'src/ui/panels.js'],
+  write_file: ['src/ui/panels.js', 'src/data/simulate.js'],
+  search: ['"cacheReadTokens"', '"context projection"', '"subagent"'],
+  bash: ['npm run build', 'git status --short', 'node tools/smoke.mjs', 'pnpm install', 'npm test'],
+  subagent: ['analyze link.js data flow', 'review ring.build guard'],
+  edit: ['resize() guard', 'ring.build guard'],
+  web_fetch: ['github.com/bowenliang123/dsh-context'],
+  plan: ['panel redesign v0.4']
+};
+
 /**
  * @param {{seed?: number, intervalMs?: number, onEvent?: Function}} [options]
  * @returns {object} a DataSource
@@ -26,17 +38,22 @@ export function createSimulatedSource(options = {}) {
     running: false,
     activity: 0,
     tps: 0,
-    totalTokens: 0,
-    inputTokens: 0,
-    outputTokens: 0,
+    totalTokens: 800,
+    inputTokens: 800,
+    outputTokens: 240,
+    cacheReadTokens: 560,
     contextTokens: 4200,
     contextLimit: 65536,
     turn: 0,
     step: 0,
     model: 'deepseek-chat',
     sessionTitle: '模拟会话',
-    tools: [],
-    feed: [],
+    tools: [{ id: 'call_seed_1', name: 'read_file', state: 'running' }],
+    feed: [
+      { kind: 'tool', text: 'read_file(src/engine/index.js)', t: Date.now() - 4000 },
+      { kind: 'tool', text: 'search("cacheReadTokens")', t: Date.now() - 3000 },
+      { kind: 'tool', text: 'bash(npm run build)', t: Date.now() - 2000 }
+    ],
     tokenQueue: [],
     recentTokens: [],
     recentText: ''
@@ -114,7 +131,8 @@ export function createSimulatedSource(options = {}) {
       state.tools.push({ id: activeTool.callId, name, state: 'running' });
       state.step++;
       fire('tool_call', { callId: activeTool.callId, name });
-      pushFeed('tool', name + '(…)');
+      const arg = (TOOL_ARGS[name] || ['…'])[Math.floor(Math.random() * (TOOL_ARGS[name] || ['…']).length)];
+      pushFeed('tool', name + '(' + arg + ')');
       schedule(900);
       return;
     }
@@ -133,6 +151,8 @@ export function createSimulatedSource(options = {}) {
       // stream an answer
       const words = 18 + Math.floor(Math.random() * 40);
       state.inputTokens = Math.min(state.contextLimit - 2000, state.inputTokens + words);
+      // ~70% of the new input is a cache hit (prompt caching), the rest uncached
+      state.cacheReadTokens = Math.min(state.inputTokens, Math.round(state.inputTokens * 0.7));
       fire('user', { text: '模拟用户输入' });
       startStream(words);
       schedule(2400);

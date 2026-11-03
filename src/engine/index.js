@@ -390,8 +390,11 @@ export function createHaloflux(canvas, options = {}) {
         contextLimit: link.lastContextLimit,
         turn: link.lastTurn,
         step: link.lastStep,
-        tools: link.lastTools.length,
-        feed: link.lastFeed.length,
+        input: link.lastInput,
+        output: link.lastOutput,
+        cacheReadTokens: link.lastCacheRead,
+        tools: link.lastTools,
+        feed: link.lastFeed,
         recentText: link.lastRecentText
       } : null,
       impulses: impulses.length,

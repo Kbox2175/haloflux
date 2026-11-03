@@ -46,6 +46,9 @@ export function createLink(source, engine, config = {}) {
     lastContextLimit: 0,
     lastTurn: 0,
     lastStep: 0,
+    lastInput: 0,
+    lastOutput: 0,
+    lastCacheRead: 0,
     lastTools: [],
     lastFeed: [],
     lastRecentText: ''
@@ -113,6 +116,9 @@ export function createLink(source, engine, config = {}) {
     link.lastContextLimit = snap.contextLimit || 0;
     link.lastTurn = snap.turn || 0;
     link.lastStep = snap.step || 0;
+    link.lastInput = snap.inputTokens || 0;
+    link.lastOutput = snap.outputTokens || 0;
+    link.lastCacheRead = snap.cacheReadTokens || 0;
     link.lastTools = snap.tools || [];
     link.lastFeed = snap.feed || [];
     link.lastRecentText = snap.recentText || '';
@@ -125,6 +131,7 @@ export function createLink(source, engine, config = {}) {
       tokens: snap.totalTokens || 0,
       input: snap.inputTokens || 0,
       output: snap.outputTokens || 0,
+      cacheReadTokens: snap.cacheReadTokens || 0,
       contextTokens: snap.contextTokens || 0,
       contextLimit: snap.contextLimit || 0,
       turn: snap.turn || 0,
@@ -209,6 +216,7 @@ export function createLiveDataSource(host, onEvent, options = {}) {
     totalTokens: live.totalTokens,
     inputTokens: live.inputTokens,
     outputTokens: live.outputTokens,
+    cacheReadTokens: live.cacheReadTokens,
     contextTokens: live.contextTokens,
     contextLimit: live.contextLimit,
     turn: live.turn,

@@ -82,6 +82,39 @@ const STYLE = `
 .ag .st{color:#6b6f78;overflow:hidden}
 .ag .st.w{color:#f4f5f7}
 
+/* ---- 6. 工具·健康 (DOM prototype, v0.4) ---- */
+.tools{flex:1;min-height:0;display:flex;flex-direction:column;gap:4px;font-size:8px;color:#cfd2d8;overflow:hidden}
+.tools .th{display:flex;flex-direction:column;gap:4px;height:100%}
+.tools .cmd{display:flex;align-items:center;gap:6px;font-size:8.5px;color:#f4f5f7;white-space:nowrap;overflow:hidden}
+.tools .cmd .g{width:12px;text-align:center;color:#6b6f78;flex:none}
+.tools .cmd .g.run{color:#f4f5f7}
+.tools .cmd .g.ok{color:#98e0cf}
+.tools .cmd .tx{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.tools .cmd .du{color:#6b6f78;font-variant-numeric:tabular-nums;flex:none}
+.tools .mid{display:flex;align-items:center;gap:10px}
+.tools .dn{position:relative;width:42px;height:42px;flex:none}
+.tools .dn-svg{width:42px;height:42px;transform:rotate(-90deg)}
+.tools .dn-t{fill:none;stroke:#1d1f24;stroke-width:4}
+.tools .dn-s{fill:none;stroke:#98e0cf;stroke-width:4;transition:stroke-dasharray .6s ease}
+.tools .dn-c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}
+.tools .dn-c b{font-size:11px;color:#f4f5f7}
+.tools .dn-c span{font-size:7px;color:#6b6f78;margin-top:1px}
+.tools .st{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.tools .st-bar{display:flex;height:8px;border-radius:1px;overflow:hidden;background:#1d1f24}
+.tools .st-bar i{display:block;height:100%}
+.tools .st-leg{display:flex;gap:8px;font-size:7px;color:#6b6f78;white-space:nowrap;overflow:hidden}
+.tools .st-leg span{display:inline-flex;align-items:center;gap:3px}
+.tools .st-leg i{width:6px;height:6px;display:inline-block;border-radius:1px}
+.tools .trows{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;gap:2px}
+.tools .trow{display:flex;align-items:center;gap:5px;white-space:nowrap}
+.tools .tn{width:62px;color:#cfd2d8;overflow:hidden;text-overflow:ellipsis;font-size:7.5px;flex:none}
+.tools .tb{flex:1;height:5px;background:#1d1f24;border-radius:1px;overflow:hidden;min-width:0}
+.tools .tb i{display:block;height:100%}
+.tools .tg{width:9px;text-align:center;font-size:7px;flex:none}
+.tools .tg.ok{color:#98e0cf}
+.tools .tg.err{color:#f0a6c6}
+.tools .tc{color:#6b6f78;font-size:7px;font-variant-numeric:tabular-nums;flex:none}
+
 @media (max-width:1000px){
   html,body{overflow:auto} .halo-shell{height:auto}
   .halo-stage{height:62vh}
@@ -175,7 +208,7 @@ export function createShell(opts) {
 
     // canvas panels render into their own canvas; the rest need a container
     // with the class their renderer looks for.
-    if (def.key === 'adv' || def.key === 'diff' || def.key === 'val' || def.key === 'idx') {
+    if (def.key === 'adv' || def.key === 'diff' || def.key === 'idx') {
       body.appendChild(document.createElement('canvas'));
     } else if (def.key === 'feed') {
       body.className = 'feed';
@@ -185,6 +218,8 @@ export function createShell(opts) {
       body.className = 'routes';
     } else if (def.key === 'agents') {
       body.className = 'agents';
+    } else if (def.key === 'tools') {
+      body.className = 'tools';
     }
 
     const cap = document.createElement('div');
@@ -246,9 +281,9 @@ export function createShell(opts) {
       kpis[1].querySelector('.v').textContent = link.step || 0;
       kpis[2].querySelector('.v').textContent = `${(link.tps || 0).toFixed(1)} tok/s`;
       kpis[3].querySelector('.v').textContent = `${(occ * 100).toFixed(1)}%`;
-      kpis[4].querySelector('.v').textContent = link.running ? `${link.tools} 运行` : `${link.tools} 空闲`;
+      kpis[4].querySelector('.v').textContent = link.running ? `${link.tools.length} 运行` : `${link.tools.length} 空闲`;
       segs.forEach((s, i) => {
-        const v = [link.turn || 0, link.step || 0, clamp01((link.tps || 0) / 80), occ, clamp01(link.tools / 12)][i];
+        const v = [link.turn || 0, link.step || 0, clamp01((link.tps || 0) / 80), occ, clamp01(link.tools.length / 12)][i];
         s.style.width = `${clamp01(v) * 100}%`;
       });
     }
